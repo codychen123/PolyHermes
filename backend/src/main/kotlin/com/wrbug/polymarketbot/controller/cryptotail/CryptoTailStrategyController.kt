@@ -267,7 +267,7 @@ class CryptoTailStrategyController(
                             "当前周期已下单" -> ErrorCode.PARAM_ERROR
                             "价格必须在 0~1 之间" -> ErrorCode.PARAM_ERROR
                             "数量不能少于 1" -> ErrorCode.PARAM_ERROR
-                            "总金额不能少于 1 USDC" -> ErrorCode.PARAM_ERROR
+                            "总金额不能少于 $1" -> ErrorCode.PARAM_ERROR
                             "总金额超过策略配置的投入金额" -> ErrorCode.PARAM_ERROR
                             else -> ErrorCode.SERVER_ERROR
                         }

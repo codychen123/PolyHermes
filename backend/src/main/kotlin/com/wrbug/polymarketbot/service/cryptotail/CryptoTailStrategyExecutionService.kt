@@ -702,7 +702,7 @@ class CryptoTailStrategyExecutionService(
 
             val amountUsdc = priceRounded.multi(size).setScale(2, RoundingMode.HALF_UP)
             if (amountUsdc < BigDecimal.ONE) {
-                return Result.failure(IllegalArgumentException("总金额不能少于 1 USDC"))
+                return Result.failure(IllegalArgumentException("总金额不能少于 \$1"))
             }
 
             val mutex = getTriggerMutex(strategy.id!!, request.periodStartUnix)

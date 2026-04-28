@@ -75,9 +75,9 @@ const BacktestChart: React.FC<BacktestChartProps> = ({ trades }) => {
           return `
             <div>
               <div>${t('backtest.tradeTime')}: ${param.name}</div>
-              <div>${t('backtest.balanceAfter')}: ${value} USDC</div>
+              <div>${t('backtest.balanceAfter')}: $${value}</div>
               <div style="color: ${color}">
-                ${t('backtest.profitLoss')}: ${diff} USDC (${diffPercent}%)
+                ${t('backtest.profitLoss')}: $${diff} (${diffPercent}%)
               </div>
             </div>
           `
@@ -121,7 +121,7 @@ const BacktestChart: React.FC<BacktestChartProps> = ({ trades }) => {
       },
       yAxis: {
         type: 'value',
-        name: 'USDC',
+        name: '$',
         nameLocation: 'end',
         nameGap: 10,
         axisLabel: {
