@@ -365,7 +365,7 @@ class AccountService(
     }
 
     /**
-     * Polymarket 代币批准检查：USDC.e 需授权的 spender 合约地址（Polygon 主网）
+     * Polymarket 代币批准检查：pUSD 需授权的 spender 合约地址（Polygon 主网）
      * 来源：Polymarket/magic-safe-builder-example README §6 Token Approvals
      * 及 neg-risk-ctf-adapter 仓库 addresses.json (chainId 137)
      */
@@ -941,7 +941,7 @@ class AccountService(
     }
 
     /**
-     * 轮询用：遍历所有账户，对代理地址 WCOL 余额 > 0 的执行解包为 USDC.e。
+     * 轮询用：遍历所有账户，对代理地址 WCOL 余额 > 0 的执行解包。
      * 由 WcolUnwrapJobService 每 20 秒调用，赎回后无需在赎回流程内等待确认与解包。
      */
     suspend fun runWcolUnwrapForAllAccounts() {

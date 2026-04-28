@@ -290,14 +290,14 @@ class RelayClientService(
     }
 
     /**
-     * 创建 WCOL 解包交易（将 Wrapped Collateral 解包为 USDC.e）
+     * 创建 WCOL 解包交易（将 Wrapped Collateral 执行解包）
      * 合约: Neg Risk WrappedCollateral 0x3A3BD7bb9528E159577F7C2e685CC81A765002E2
-     * 方法: unwrap(address _to, uint256 _amount)，解包后 USDC.e 转到 _to
+     * 方法: unwrap(address _to, uint256 _amount)
      *
      * Safe 与 Magic 共用此交易对象：Safe 走 [executeViaBuilderRelayer] / [executeManually]（execTransaction），
      * Magic 走 [executeViaBuilderRelayerProxy]（encodeProxyTransactionData），语义一致。
      *
-     * @param toAddress 接收 USDC.e 的地址（通常为 proxy 自身，使余额留在代理钱包）
+     * @param toAddress 接收解包资产的地址（通常为 proxy 自身，使余额留在代理钱包）
      * @param amountWei WCOL 数量（6 位小数对应的 raw 值，与 balanceOf 返回一致）
      * @return Safe 交易对象
      */

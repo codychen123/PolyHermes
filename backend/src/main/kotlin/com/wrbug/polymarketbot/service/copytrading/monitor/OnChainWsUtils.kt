@@ -46,9 +46,8 @@ object OnChainWsUtils {
     
     // 合约地址
     const val PUSD_CONTRACT = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"         // V2 pUSD
-    const val USDCE_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"         // V1 USDC.e（迁移前仍需识别）
     const val USDC_CONTRACT = PUSD_CONTRACT  // 默认使用 pUSD
-    private val COLLATERAL_CONTRACTS = setOf(PUSD_CONTRACT.lowercase(), USDCE_CONTRACT.lowercase())
+    private val COLLATERAL_CONTRACTS = setOf(PUSD_CONTRACT.lowercase())
     const val ERC1155_CONTRACT = "0x4d97dcd97ec945f40cf65f87097ace5ea0476045"
     const val ERC20_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
     const val ERC1155_TRANSFER_SINGLE_TOPIC = "0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62"
@@ -99,7 +98,7 @@ object OnChainWsUtils {
             val t0 = topics[0].lowercase()
             val data = log.get("data")?.asString ?: "0x"
             
-            // USDC/pUSD ERC20 Transfer（同时匹配 USDC.e 和 pUSD，V2 迁移后可移除 USDCE）
+            // 抵押品 ERC20 Transfer（当前仅匹配 pUSD）
             if (address in COLLATERAL_CONTRACTS && t0 == ERC20_TRANSFER_TOPIC && topics.size >= 3) {
                 val from = topicToAddress(topics[1])
                 val to = topicToAddress(topics[2])

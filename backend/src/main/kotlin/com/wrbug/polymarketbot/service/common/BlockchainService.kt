@@ -56,7 +56,7 @@ class BlockchainService(
     // ConditionalTokens 合约地址（Polygon 主网）
     private val conditionalTokensAddress = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 
-    // Neg Risk WrappedCollateral 合约地址（Polygon，解包后得 USDC.e）
+    // Neg Risk WrappedCollateral 合约地址（Polygon）
     private val wcolContractAddress = "0x3A3BD7bb9528E159577F7C2e685CC81A765002E2"
     
     // 空集合ID（用于计算collectionId）
@@ -812,11 +812,11 @@ class BlockchainService(
     }
 
     /**
-     * 将代理钱包内的 WCOL 解包为 USDC.e（解包后转入代理地址）
-     * 赎回 Neg Risk 仓位后到账为 WCOL，调用此方法可转为 USDC.e 以便显示/使用。
+     * 将代理钱包内的 WCOL 执行解包（解包后转入代理地址）
+     * 赎回 Neg Risk 仓位后到账为 WCOL，调用此方法可执行解包后续资产处理。
      *
      * Safe 与 Magic 使用同一套逻辑：同一 [createUnwrapWcolTx] + [RelayClientService.execute]；
-     * Safe 走 execTransaction，Magic 走 PROXY 编码，最终均为代理合约调用 WCOL.unwrap(proxyAddress, amount)，USDC.e 转入 proxyAddress。
+     * Safe 走 execTransaction，Magic 走 PROXY 编码，最终均为代理合约调用 WCOL.unwrap(proxyAddress, amount)。
      *
      * @param privateKey 主钱包私钥
      * @param proxyAddress 代理地址（Safe 或 Magic 代理）
