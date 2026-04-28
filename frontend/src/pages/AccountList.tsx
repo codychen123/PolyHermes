@@ -29,7 +29,9 @@ const AccountList: React.FC = () => {
   const [accountImportModalVisible, setAccountImportModalVisible] = useState(false)
   const [accountImportForm] = Form.useForm()
   const [wrapLoading, setWrapLoading] = useState<Record<number, boolean>>({})
+  const [migrationGuideVisible, setMigrationGuideVisible] = useState(false)
 
+  const ACCOUNT_GUIDE_KEY = 'clob_v2_account_guide_dismissed'
   const handleWrapToPusd = async (account: Account) => {
     try {
       setWrapLoading(prev => ({ ...prev, [account.id]: true }))
@@ -69,6 +71,13 @@ const AccountList: React.FC = () => {
   useEffect(() => {
     fetchAccounts()
   }, [fetchAccounts])
+
+  // 首次进入且有账户时显示迁移引导
+  useEffect(() => {
+    if (!loading && accounts.length > 0 && !localStorage.getItem(ACCOUNT_GUIDE_KEY)) {
+      setMigrationGuideVisible(true)
+    }
+  }, [loading, accounts.length])
 
   const handleAccountImportSuccess = async () => {
     message.success(t('accountImport.importSuccess'))
@@ -363,7 +372,7 @@ const AccountList: React.FC = () => {
         }
         const balanceObj = balanceMap[record.id]
         const balance = balanceObj?.total || record.balance || '-'
-        return balance && balance !== '-' && typeof balance === 'string' ? `${formatUSDC(balance)} USDC` : '-'
+        return balance && balance !== '-' && typeof balance === 'string' ? `$${formatUSDC(balance)}` : '-'
       }
     },
     {
@@ -496,6 +505,38 @@ const AccountList: React.FC = () => {
         </Tooltip>
       </div>
 
+      {migrationGuideVisible && !loading && accounts.length > 0 && (
+        <Alert
+          message={t('clobMigration.accountGuide')}
+          type="warning"
+          showIcon
+          icon={<SwapOutlined />}
+          closable
+          onClose={() => {
+            localStorage.setItem(ACCOUNT_GUIDE_KEY, 'true')
+            setMigrationGuideVisible(false)
+          }}
+          afterClose={() => {
+            localStorage.setItem(ACCOUNT_GUIDE_KEY, 'true')
+            setMigrationGuideVisible(false)
+          }}
+          style={{ marginBottom: 16, ...(isMobile ? { margin: '0 8px 12px' } : {}) }}
+          action={
+            <Button
+              size="small"
+              type="primary"
+              danger
+              onClick={() => {
+                localStorage.setItem(ACCOUNT_GUIDE_KEY, 'true')
+                setMigrationGuideVisible(false)
+              }}
+            >
+              {t('clobMigration.dismissGuide')}
+            </Button>
+          }
+        />
+      )}
+
       <Card style={{
         margin: isMobile ? '0 -8px' : '0',
         borderRadius: isMobile ? '0' : undefined
@@ -562,7 +603,7 @@ const AccountList: React.FC = () => {
                             {t('accountList.totalBalance')}
                           </div>
                           <div style={{ fontSize: '14px', fontWeight: '600', color: '#52c41a' }}>
-                            {balance?.total && balance.total !== '-' ? `${formatUSDC(balance.total)} USDC` : '- USDC'}
+                            {balance?.total && balance.total !== '-' ? `$${formatUSDC(balance.total)}` : '-'}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
@@ -623,6 +664,16 @@ const AccountList: React.FC = () => {
                         >
                           <EditOutlined style={{ fontSize: '18px', color: '#52c41a' }} />
                           <span style={{ fontSize: '10px', color: '#8c8c8c', marginTop: '2px' }}>{t('accountList.edit')}</span>
+                        </div>
+                      </Tooltip>
+
+                      <Tooltip title={t('clobMigration.accountGuideButton')}>
+                        <div
+                          onClick={() => handleWrapToPusd(account)}
+                          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: wrapLoading[account.id] ? 'wait' : 'pointer', padding: '4px 8px' }}
+                        >
+                          <SwapOutlined style={{ fontSize: '18px', color: '#fa8c16' }} spin={wrapLoading[account.id]} />
+                          <span style={{ fontSize: '10px', color: '#8c8c8c', marginTop: '2px' }}>{t('clobMigration.accountGuideButton')}</span>
                         </div>
                       </Tooltip>
 
@@ -786,7 +837,7 @@ const AccountList: React.FC = () => {
                   <Spin size="small" />
                 ) : detailBalance ? (
                   <span style={{ fontWeight: 'bold', color: '#1890ff', fontSize: '16px' }}>
-                    {formatUSDC(detailBalance.total)} USDC
+                    ${formatUSDC(detailBalance.total)}
                   </span>
                 ) : (
                   <span style={{ color: '#999' }}>-</span>
@@ -797,7 +848,7 @@ const AccountList: React.FC = () => {
                   <Spin size="small" />
                 ) : detailBalance ? (
                   <span style={{ color: '#52c41a' }}>
-                    {formatUSDC(detailBalance.available)} USDC
+                    ${formatUSDC(detailBalance.available)}
                   </span>
                 ) : (
                   <span style={{ color: '#999' }}>-</span>
@@ -808,7 +859,7 @@ const AccountList: React.FC = () => {
                   <Spin size="small" />
                 ) : detailBalance ? (
                   <span style={{ color: '#1890ff' }}>
-                    {formatUSDC(detailBalance.position)} USDC
+                    ${formatUSDC(detailBalance.position)}
                   </span>
                 ) : (
                   <span style={{ color: '#999' }}>-</span>
@@ -864,7 +915,7 @@ const AccountList: React.FC = () => {
                           fontWeight: 'bold',
                           color: detailAccount.totalPnl && detailAccount.totalPnl.startsWith('-') ? '#ff4d4f' : '#52c41a'
                         }}>
-                          {formatUSDC(detailAccount.totalPnl)} USDC
+                          ${formatUSDC(detailAccount.totalPnl)}
                         </span>
                       </Descriptions.Item>
                     )}
