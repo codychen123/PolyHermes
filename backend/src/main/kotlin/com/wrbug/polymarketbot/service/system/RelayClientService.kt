@@ -39,8 +39,14 @@ class RelayClientService(
     // ConditionalTokens 合约地址
     private val conditionalTokensAddress = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 
-    // USDC.e 合约地址（普通市场抵押品）
-    private val usdcContractAddress = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+    // pUSD 合约地址（普通市场抵押品）
+    private val usdcContractAddress = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+
+    // USDC.e 合约地址（仅用于 wrap 到 pUSD）
+    private val usdceContractAddress = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+
+    // CollateralOnramp 合约地址（USDC.e → pUSD）
+    private val collateralOnrampAddress = "0x93070a847efEf7F70739046A929D47a521F5B8ee"
 
     // Neg Risk 市场使用的 WrappedCollateral 合约地址（Polygon，neg-risk-ctf-adapter）
     private val negRiskWrappedCollateralAddress = "0x3A3BD7bb9528E159577F7C2e685CC81A765002E2"
@@ -51,7 +57,9 @@ class RelayClientService(
     // Polygon PROXY（Magic）合约地址，参考 builder-relayer-client config
     private val proxyFactoryAddress = "0xaB45c5A4B0c941a2F231C04C3f49182e1A254052"
     private val relayHubAddress = "0xD216153c06E857cD7f72665E0aF1d7D82172F494"
-    private val defaultProxyGasLimit = "10000000"
+    // PROXY relayCall 内层 gasLimit（签名参数）不能给过大值，否则 RelayHub 会因 gasleft 校验失败回滚。
+    private val defaultProxyGasLimit = "2400000"
+    private val maxProxyGasLimit = BigInteger.valueOf(2400000)
 
     // Safe MultiSend 合约地址（Polygon 主网）
     private val safeMultisendAddress = "0xA238CBeb142c10Ef7Ad8442C6D1f9E89e07e7761"
@@ -282,14 +290,14 @@ class RelayClientService(
     }
 
     /**
-     * 创建 WCOL 解包交易（将 Wrapped Collateral 解包为 USDC.e）
+     * 创建 WCOL 解包交易（将 Wrapped Collateral 执行解包）
      * 合约: Neg Risk WrappedCollateral 0x3A3BD7bb9528E159577F7C2e685CC81A765002E2
-     * 方法: unwrap(address _to, uint256 _amount)，解包后 USDC.e 转到 _to
+     * 方法: unwrap(address _to, uint256 _amount)
      *
      * Safe 与 Magic 共用此交易对象：Safe 走 [executeViaBuilderRelayer] / [executeManually]（execTransaction），
      * Magic 走 [executeViaBuilderRelayerProxy]（encodeProxyTransactionData），语义一致。
      *
-     * @param toAddress 接收 USDC.e 的地址（通常为 proxy 自身，使余额留在代理钱包）
+     * @param toAddress 接收解包资产的地址（通常为 proxy 自身，使余额留在代理钱包）
      * @param amountWei WCOL 数量（6 位小数对应的 raw 值，与 balanceOf 返回一致）
      * @return Safe 交易对象
      */
@@ -318,6 +326,41 @@ class RelayClientService(
         return SafeTransaction(
             to = usdcContractAddress,
             operation = 0,  // CALL
+            data = callData,
+            value = "0"
+        )
+    }
+
+    /**
+     * 创建 USDC.e approve 交易（用于 wrap 到 pUSD）
+     * 授权 CollateralOnramp 合约花费用户的 USDC.e
+     */
+    fun createUsdceApproveForWrapTx(amount: BigInteger): SafeTransaction {
+        val functionSelector = EthereumUtils.getFunctionSelector("approve(address,uint256)")
+        val encodedSpender = EthereumUtils.encodeAddress(collateralOnrampAddress)
+        val encodedAmount = EthereumUtils.encodeUint256(amount)
+        val callData = "0x" + functionSelector.removePrefix("0x") + encodedSpender + encodedAmount
+        return SafeTransaction(
+            to = usdceContractAddress,
+            operation = 0,
+            data = callData,
+            value = "0"
+        )
+    }
+
+    /**
+     * 创建 USDC.e → pUSD wrap 交易
+     * CollateralOnramp.wrap(address _asset, address _to, uint256 _amount)
+     */
+    fun createWrapToPusdTx(recipientAddress: String, amount: BigInteger): SafeTransaction {
+        val functionSelector = EthereumUtils.getFunctionSelector("wrap(address,address,uint256)")
+        val asset = EthereumUtils.encodeAddress(usdceContractAddress)
+        val to = EthereumUtils.encodeAddress(recipientAddress)
+        val amt = EthereumUtils.encodeUint256(amount)
+        val callData = "0x" + functionSelector.removePrefix("0x") + asset + to + amt
+        return SafeTransaction(
+            to = collateralOnrampAddress,
+            operation = 0,
             data = callData,
             value = "0"
         )
@@ -489,7 +532,16 @@ class RelayClientService(
         
         // 估算 gas limit（参考 builder-relayer-client builder/proxy.ts getGasLimit）
         val gasLimit = try {
-            estimateProxyGasLimit(fromAddress, proxyFactoryAddress, proxyCallData)
+            val estimatedGasLimit = estimateProxyGasLimit(fromAddress, proxyFactoryAddress, proxyCallData)
+            val estimatedBigInt = BigInteger(estimatedGasLimit)
+            if (estimatedBigInt > maxProxyGasLimit) {
+                logger.warn(
+                    "估算 PROXY gas limit 过大，进行截断: estimated=$estimatedGasLimit, capped=$maxProxyGasLimit"
+                )
+                maxProxyGasLimit.toString()
+            } else {
+                estimatedGasLimit
+            }
         } catch (e: Exception) {
             logger.warn("估算 PROXY gas limit 失败，使用默认值: ${e.message}", e)
             defaultProxyGasLimit

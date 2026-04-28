@@ -145,7 +145,7 @@ const CopyTradingSellOrdersPage: React.FC = () => {
         const amount = (parseFloat(record.quantity) * parseFloat(record.price)).toString()
         return (
           <span style={{ fontSize: isMobile ? 12 : 14 }}>
-            {isMobile ? formatUSDC(amount) : `${formatUSDC(amount)} USDC`}
+            {isMobile ? formatUSDC(amount) : `$${formatUSDC(amount)}`}
           </span>
         )
       }
@@ -161,7 +161,7 @@ const CopyTradingSellOrdersPage: React.FC = () => {
           fontWeight: 500,
           fontSize: isMobile ? 12 : 14
         }}>
-          {isMobile ? formatUSDC(value) : `${formatUSDC(value)} USDC`}
+          {isMobile ? formatUSDC(value) : `$${formatUSDC(value)}`}
         </span>
       )
     },
@@ -277,7 +277,7 @@ const CopyTradingSellOrdersPage: React.FC = () => {
                           数量: {formatUSDC(order.quantity)} | 价格: {formatUSDC(order.price)}
                         </div>
                         <div style={{ fontSize: '14px', fontWeight: '500', marginTop: '4px' }}>
-                          金额: {formatUSDC(amount)} USDC
+                          金额: ${formatUSDC(amount)}
                         </div>
                       </div>
                       
@@ -289,7 +289,7 @@ const CopyTradingSellOrdersPage: React.FC = () => {
                           fontWeight: 'bold',
                           color: getPnlColor(order.realizedPnl)
                         }}>
-                          {formatUSDC(order.realizedPnl)} USDC
+                          ${formatUSDC(order.realizedPnl)}
                         </div>
                       </div>
                       

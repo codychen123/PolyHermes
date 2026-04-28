@@ -261,7 +261,7 @@ const BuyOrdersTab: React.FC<BuyOrdersTabProps> = ({ copyTradingId, active = fal
         const amount = (parseFloat(record.quantity) * parseFloat(record.price)).toString()
         return (
           <span style={{ fontSize: isMobile ? 12 : 14 }}>
-            {isMobile ? formatUSDC(amount) : `${formatUSDC(amount)} USDC`}
+            {isMobile ? formatUSDC(amount) : `$${formatUSDC(amount)}`}
           </span>
         )
       }
@@ -384,7 +384,7 @@ const BuyOrdersTab: React.FC<BuyOrdersTabProps> = ({ copyTradingId, active = fal
                   </div>
                   <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: isMobile ? '12px' : '13px', color: '#666' }}>
                     <span>{t('copyTradingOrders.orderCount') || '订单数'}: {group.stats.count}</span>
-                    <span>{t('copyTradingOrders.totalAmount') || '总金额'}: {formatUSDC(group.stats.totalAmount)} USDC</span>
+                    <span>{t('copyTradingOrders.totalAmount') || '总金额'}: ${formatUSDC(group.stats.totalAmount)}</span>
                     <span>
                       {t('copyTradingOrders.statusBreakdown') || '状态'}:
                       {group.stats.fullyMatchedCount > 0 && ` ${t('copyTradingOrders.allFullySold') || '全部卖出'} ${group.stats.fullyMatchedCount}`}
@@ -460,7 +460,7 @@ const BuyOrdersTab: React.FC<BuyOrdersTabProps> = ({ copyTradingId, active = fal
 
                             <div style={{ fontSize: '12px', color: '#666' }}>
                               <div>{t('copyTradingOrders.quantity') || '数量'}: {formatUSDC(order.quantity)} | {t('copyTradingOrders.price') || '价格'}: {formatUSDC(order.price)}</div>
-                              <div>{t('copyTradingOrders.amount') || '金额'}: {formatUSDC(amount)} USDC</div>
+                              <div>{t('copyTradingOrders.amount') || '金额'}: ${formatUSDC(amount)}</div>
                               <div>{t('copyTradingOrders.matched') || '已匹配'}: {formatUSDC(order.matchedQuantity)} | {t('copyTradingOrders.remaining') || '剩余'}: {formatUSDC(order.remainingQuantity)}</div>
                               <div style={{ color: '#999', marginTop: '4px' }}>{formattedDate}</div>
                             </div>
@@ -557,7 +557,7 @@ const BuyOrdersTab: React.FC<BuyOrdersTabProps> = ({ copyTradingId, active = fal
                         {t('copyTradingOrders.quantity') || '数量'}: {formatUSDC(order.quantity)} | {t('copyTradingOrders.price') || '价格'}: {formatUSDC(order.price)}
                       </div>
                       <div style={{ fontSize: '14px', fontWeight: '500', marginTop: '4px' }}>
-                        {t('copyTradingOrders.amount') || '金额'}: {formatUSDC(amount)} USDC
+                        {t('copyTradingOrders.amount') || '金额'}: ${formatUSDC(amount)}
                       </div>
                     </div>
 

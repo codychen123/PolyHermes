@@ -145,7 +145,7 @@ const CopyTradingStatisticsPage: React.FC = () => {
             <Statistic
               title="总买入金额"
               value={formatUSDC(statistics.totalBuyAmount)}
-              suffix="USDC"
+              prefix="$"
             />
           </Col>
           <Col xs={24} sm={12} md={6}>
@@ -179,7 +179,7 @@ const CopyTradingStatisticsPage: React.FC = () => {
             <Statistic
               title="总卖出金额"
               value={formatUSDC(statistics.totalSellAmount)}
-              suffix="USDC"
+              prefix="$"
             />
           </Col>
           <Col xs={24} sm={12} md={8}>
@@ -220,8 +220,7 @@ const CopyTradingStatisticsPage: React.FC = () => {
               title="总已实现盈亏"
               value={formatUSDC(statistics.totalRealizedPnl)}
               valueStyle={{ color: getPnlColor(statistics.totalRealizedPnl) }}
-              prefix={getPnlIcon(statistics.totalRealizedPnl)}
-              suffix="USDC"
+              prefix={<>{getPnlIcon(statistics.totalRealizedPnl)} $</>}
             />
           </Col>
           <Col xs={24} sm={12} md={6}>
@@ -229,8 +228,7 @@ const CopyTradingStatisticsPage: React.FC = () => {
               title="总未实现盈亏"
               value={formatUSDC(statistics.totalUnrealizedPnl)}
               valueStyle={{ color: getPnlColor(statistics.totalUnrealizedPnl) }}
-              prefix={getPnlIcon(statistics.totalUnrealizedPnl)}
-              suffix="USDC"
+              prefix={<>{getPnlIcon(statistics.totalUnrealizedPnl)} $</>}
             />
           </Col>
           <Col xs={24} sm={12} md={6}>
@@ -238,8 +236,7 @@ const CopyTradingStatisticsPage: React.FC = () => {
               title="总盈亏"
               value={formatUSDC(statistics.totalPnl)}
               valueStyle={{ color: getPnlColor(statistics.totalPnl) }}
-              prefix={getPnlIcon(statistics.totalPnl)}
-              suffix="USDC"
+              prefix={<>{getPnlIcon(statistics.totalPnl)} $</>}
             />
           </Col>
           <Col xs={24} sm={12} md={6}>

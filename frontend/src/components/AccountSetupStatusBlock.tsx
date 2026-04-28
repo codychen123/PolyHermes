@@ -247,7 +247,7 @@ const AccountSetupStatusBlock: React.FC<AccountSetupStatusBlockProps> = ({
               const displayText = isUnlimited
                 ? t('accountSetup.approvalDetails.unlimited')
                 : isApproved
-                  ? `${parseFloat(allowance).toFixed(2)} USDC`
+                  ? `$${parseFloat(allowance).toFixed(2)}`
                   : t('accountSetup.approvalDetails.notApproved')
               return (
                 <div

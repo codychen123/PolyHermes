@@ -691,7 +691,7 @@ class TelegramNotificationService(
 • $sideLabel: <b>$sideDisplay</b>
 • $priceLabel: <code>$priceDisplay</code>
 • $quantityLabel: <code>$sizeDisplay</code> shares
-• $amountLabel: <code>$amountDisplay</code> USDC
+• $amountLabel: <code>${'$'}$amountDisplay</code>
 • $accountLabel: $escapedAccountInfo
 
 ⚠️ <b>$filterTypeLabel：</b> <code>$filterTypeDisplay</code>
@@ -1169,9 +1169,9 @@ class TelegramNotificationService(
                 } else {
                     balanceDecimal.stripTrailingZeros()
                 }
-                "\n• $availableBalanceLabel: <code>${formatted.toPlainString()}</code> USDC"
+                "\n• $availableBalanceLabel: <code>${'$'}${formatted.toPlainString()}</code>"
             } catch (e: Exception) {
-                "\n• $availableBalanceLabel: <code>$availableBalance</code> USDC"
+                "\n• $availableBalanceLabel: <code>${'$'}$availableBalance</code>"
             }
         } else {
             ""
@@ -1185,7 +1185,7 @@ class TelegramNotificationService(
 • $sideLabel: <b>$sideDisplay</b>
 • $priceLabel: <code>$priceDisplay</code>
 • $quantityLabel: <code>$sizeDisplay</code> shares
-• $amountLabel: <code>$amountDisplay</code> USDC
+• $amountLabel: <code>${'$'}$amountDisplay</code>
 • $accountLabel: $escapedAccountInfo$escapedCopyTradingInfo$availableBalanceDisplay
 
 ⏰ $timeLabel: <code>$time</code>"""
@@ -1264,7 +1264,7 @@ class TelegramNotificationService(
 • $sideLabel: <b>$sideDisplay</b>
 • $priceLabel: <code>$priceDisplay</code>
 • $quantityLabel: <code>$sizeDisplay</code> shares
-• $amountLabel: <code>$amountDisplay</code> USDC
+• $amountLabel: <code>${'$'}$amountDisplay</code>
 • $accountLabel: $escapedAccountInfo
 
 ⏰ $timeLabel: <code>$time</code>"""
@@ -1381,7 +1381,7 @@ class TelegramNotificationService(
 • $sideLabel: <b>$sideDisplay</b>
 • $priceLabel: <code>$priceDisplay</code>
 • $quantityLabel: <code>$sizeDisplay</code> shares
-• $amountLabel: <code>$amountDisplay</code> USDC
+• $amountLabel: <code>${'$'}$amountDisplay</code>
 • $accountLabel: $escapedAccountInfo
 
 ⚠️ <b>$errorInfo：</b>
@@ -1515,7 +1515,7 @@ class TelegramNotificationService(
             } catch (e: Exception) {
                 position.value
             }
-            "  • ${position.marketId.substring(0, 8)}... (${position.side}): $quantityDisplay shares = $valueDisplay USDC"
+            "  • ${position.marketId.substring(0, 8)}... (${position.side}): $quantityDisplay shares = ${'$'}$valueDisplay"
         }
         
         // 格式化可用余额
@@ -1527,9 +1527,9 @@ class TelegramNotificationService(
                 } else {
                     balanceDecimal.stripTrailingZeros()
                 }
-                "\n• $availableBalanceLabel: <code>${formatted.toPlainString()}</code> USDC"
+                "\n• $availableBalanceLabel: <code>${'$'}${formatted.toPlainString()}</code>"
             } catch (e: Exception) {
-                "\n• $availableBalanceLabel: <code>$availableBalance</code> USDC"
+                "\n• $availableBalanceLabel: <code>${'$'}$availableBalance</code>"
             }
         } else {
             ""
@@ -1540,7 +1540,7 @@ class TelegramNotificationService(
 📊 <b>$redeemInfo：</b>
 • $accountLabel: $escapedAccountInfo
 • $transactionHashLabel: <code>$escapedTxHash</code>
-• $totalValueLabel: <code>$totalValueDisplay</code> USDC$availableBalanceDisplay
+• $totalValueLabel: <code>${'$'}$totalValueDisplay</code>$availableBalanceDisplay
 
 📦 <b>$positionsLabel：</b>
 $positionsText
@@ -1642,9 +1642,9 @@ $positionsText
                 } else {
                     balanceDecimal.stripTrailingZeros()
                 }
-                "\n• $availableBalanceLabel: <code>${formatted.toPlainString()}</code> USDC"
+                "\n• $availableBalanceLabel: <code>${'$'}${formatted.toPlainString()}</code>"
             } catch (e: Exception) {
-                "\n• $availableBalanceLabel: <code>$availableBalance</code> USDC"
+                "\n• $availableBalanceLabel: <code>${'$'}$availableBalance</code>"
             }
         } else {
             ""

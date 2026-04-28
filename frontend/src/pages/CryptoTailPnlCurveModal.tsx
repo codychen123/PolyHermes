@@ -45,12 +45,12 @@ const CryptoTailPnlCurveModal: React.FC<CryptoTailPnlCurveModalProps> = (props) 
           if (!v) return ''
           const d = data.curveData.find((p) => p.timestamp === v[0])
           if (!d) return ''
-          return dayjs(v[0]).format('YYYY-MM-DD HH:mm') + '<br/>' + t('cryptoTailStrategy.pnlCurve.totalPnl') + ': ' + formatUSDC(d.cumulativePnl) + ' USDC'
+          return dayjs(v[0]).format('YYYY-MM-DD HH:mm') + '<br/>' + t('cryptoTailStrategy.pnlCurve.totalPnl') + ': $' + formatUSDC(d.cumulativePnl)
         }
       },
       grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
       xAxis: { type: 'time' },
-      yAxis: { type: 'value', axisLabel: { formatter: (val: number) => String(val) + ' USDC' } },
+      yAxis: { type: 'value', axisLabel: { formatter: (val: number) => '$' + String(val) } },
       series: [{
         name: t('cryptoTailStrategy.pnlCurve.totalPnl'),
         type: 'line',
@@ -108,7 +108,7 @@ const CryptoTailPnlCurveModal: React.FC<CryptoTailPnlCurveModalProps> = (props) 
           <Statistic
             title={t('cryptoTailStrategy.pnlCurve.totalPnl')}
             value={data?.totalRealizedPnl != null ? formatUSDC(data.totalRealizedPnl) : '-'}
-            suffix="USDC"
+            prefix="$"
             valueStyle={{ color: pnlColor(data?.totalRealizedPnl ?? null) }}
           />
         </Col>
@@ -125,7 +125,7 @@ const CryptoTailPnlCurveModal: React.FC<CryptoTailPnlCurveModalProps> = (props) 
           <Statistic
             title={t('cryptoTailStrategy.pnlCurve.maxDrawdown')}
             value={data?.maxDrawdown != null ? '-' + formatUSDC(data.maxDrawdown) : '-'}
-            suffix="USDC"
+            prefix="$"
             valueStyle={{ color: data?.maxDrawdown ? '#ff4d4f' : undefined }}
           />
         </Col>

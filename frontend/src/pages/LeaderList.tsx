@@ -254,7 +254,7 @@ const LeaderList: React.FC = () => {
         return (
           <Space direction="vertical" size={0}>
             <Text style={{ color: '#52c41a', fontSize: '14px', fontWeight: '500' }}>
-              {balance.available === '-' ? '-' : `${formatUSDC(balance.available)} USDC`}
+              {balance.available === '-' ? '-' : `$${formatUSDC(balance.available)}`}
             </Text>
             <Text type="secondary" style={{ fontSize: '12px' }}>
               {t('leaderDetail.positionBalance')}: {formatUSDC(balance.position)}
@@ -488,7 +488,7 @@ const LeaderList: React.FC = () => {
                               {t('leaderDetail.availableBalance')}
                             </div>
                             <div style={{ fontSize: '14px', fontWeight: '600', color: '#52c41a' }}>
-                              {balance?.available && balance.available !== '-' ? `${formatUSDC(balance.available)} USDC` : '- USDC'}
+                              {balance?.available && balance.available !== '-' ? `$${formatUSDC(balance.available)}` : '-'}
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
@@ -700,7 +700,7 @@ const LeaderList: React.FC = () => {
                         value={parseFloat(detailBalance.availableBalance)}
                         precision={4}
                         valueStyle={{ color: '#1890ff' }}
-                        suffix="USDC"
+                        prefix="$"
                         formatter={(value) => formatUSDC(value?.toString() || '0')}
                       />
                     </Card>
@@ -712,7 +712,7 @@ const LeaderList: React.FC = () => {
                         value={parseFloat(detailBalance.positionBalance)}
                         precision={4}
                         valueStyle={{ color: '#722ed1' }}
-                        suffix="USDC"
+                        prefix="$"
                         formatter={(value) => formatUSDC(value?.toString() || '0')}
                       />
                     </Card>
@@ -724,7 +724,7 @@ const LeaderList: React.FC = () => {
                         value={parseFloat(detailBalance.totalBalance)}
                         precision={4}
                         valueStyle={{ color: '#52c41a', fontWeight: 'bold' }}
-                        suffix="USDC"
+                        prefix="$"
                         formatter={(value) => formatUSDC(value?.toString() || '0')}
                       />
                     </Card>

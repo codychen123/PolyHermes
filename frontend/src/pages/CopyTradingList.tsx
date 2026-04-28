@@ -279,7 +279,7 @@ const CopyTradingList: React.FC = () => {
               fontSize: isMobile ? 12 : 14
             }}>
               {getPnlIcon(stats.totalPnl)}
-              {isMobile ? formatUSDC(stats.totalPnl) : `${formatUSDC(stats.totalPnl)} USDC`}
+              {isMobile ? formatUSDC(stats.totalPnl) : `$${formatUSDC(stats.totalPnl)}`}
             </div>
             {!isMobile && (
               <div style={{ 
@@ -520,7 +520,7 @@ const CopyTradingList: React.FC = () => {
                         <div style={{ fontSize: '12px', opacity: '0.9' }}>
                           {record.copyMode === 'RATIO' 
                             ? `${t('copyTradingList.ratioMode') || '比例'} ${(parseFloat(record.copyRatio || '0') * 100).toFixed(0).replace(/\.0+$/, '')}%`
-                            : `${t('copyTradingList.fixedAmountMode') || '固定'} ${formatUSDC(record.fixedAmount || '0')} USDC`
+                            : `${t('copyTradingList.fixedAmountMode') || '固定'} $${formatUSDC(record.fixedAmount || '0')}`
                           }
                         </div>
                       </div>
@@ -549,7 +549,7 @@ const CopyTradingList: React.FC = () => {
                                 gap: '4px'
                               }}>
                                 {getPnlIcon(stats.totalPnl)}
-                                {formatUSDC(stats.totalPnl)} USDC
+                                ${formatUSDC(stats.totalPnl)}
                               </div>
                             ) : loadingStatistics.has(record.id) ? (
                               <Spin size="small" />

@@ -202,7 +202,7 @@ const AccountDetail: React.FC = () => {
               <Spin size="small" />
             ) : balance ? (
               <span style={{ fontWeight: 'bold', color: '#1890ff' }}>
-                {formatUSDC(balance)} USDC
+                ${formatUSDC(balance)}
               </span>
             ) : (
               <span style={{ color: '#999' }}>-</span>
@@ -274,7 +274,7 @@ const AccountDetail: React.FC = () => {
                     fontWeight: 'bold',
                     color: account.totalPnl.startsWith('-') ? '#ff4d4f' : '#52c41a'
                   }}>
-                    {formatUSDC(account.totalPnl)} USDC
+                    ${formatUSDC(account.totalPnl)}
                   </span>
                 </Descriptions.Item>
               )}

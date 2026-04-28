@@ -258,7 +258,7 @@ const SellOrdersTab: React.FC<SellOrdersTabProps> = ({ copyTradingId, active = f
         const amount = (parseFloat(record.quantity) * parseFloat(record.price)).toString()
         return (
           <span style={{ fontSize: isMobile ? 12 : 14 }}>
-            {isMobile ? formatUSDC(amount) : `${formatUSDC(amount)} USDC`}
+            {isMobile ? formatUSDC(amount) : `$${formatUSDC(amount)}`}
           </span>
         )
       }
@@ -274,7 +274,7 @@ const SellOrdersTab: React.FC<SellOrdersTabProps> = ({ copyTradingId, active = f
           fontWeight: 500,
           fontSize: isMobile ? 12 : 14
         }}>
-          {isMobile ? formatUSDC(value) : `${formatUSDC(value)} USDC`}
+          {isMobile ? formatUSDC(value) : `$${formatUSDC(value)}`}
         </span>
       )
     },
@@ -362,10 +362,10 @@ const SellOrdersTab: React.FC<SellOrdersTabProps> = ({ copyTradingId, active = f
                   </div>
                   <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: isMobile ? '12px' : '13px', color: '#666' }}>
                     <span>{t('copyTradingOrders.orderCount') || '订单数'}: {group.stats.count}</span>
-                    <span>{t('copyTradingOrders.totalAmount') || '总金额'}: {formatUSDC(group.stats.totalAmount)} USDC</span>
+                    <span>{t('copyTradingOrders.totalAmount') || '总金额'}: ${formatUSDC(group.stats.totalAmount)}</span>
                     {group.stats.totalPnl && (
                       <span style={{ color: pnlColor, fontWeight: 500 }}>
-                        {t('copyTradingOrders.totalPnl') || '总盈亏'}: {formatUSDC(group.stats.totalPnl)} USDC
+                        {t('copyTradingOrders.totalPnl') || '总盈亏'}: ${formatUSDC(group.stats.totalPnl)}
                       </span>
                     )}
                   </div>
@@ -434,9 +434,9 @@ const SellOrdersTab: React.FC<SellOrdersTabProps> = ({ copyTradingId, active = f
 
                             <div style={{ fontSize: '12px', color: '#666' }}>
                               <div>{t('copyTradingOrders.quantity') || '数量'}: {formatUSDC(order.quantity)} | {t('copyTradingOrders.price') || '价格'}: {formatUSDC(order.price)}</div>
-                              <div>{t('copyTradingOrders.amount') || '金额'}: {formatUSDC(amount)} USDC</div>
+                              <div>{t('copyTradingOrders.amount') || '金额'}: ${formatUSDC(amount)}</div>
                               <div style={{ color: getPnlColor(order.realizedPnl), fontWeight: 500 }}>
-                                {t('copyTradingOrders.realizedPnl') || '已实现盈亏'}: {formatUSDC(order.realizedPnl)} USDC
+                                {t('copyTradingOrders.realizedPnl') || '已实现盈亏'}: ${formatUSDC(order.realizedPnl)}
                               </div>
                               <div style={{ color: '#999', marginTop: '4px' }}>{formattedDate}</div>
                             </div>
@@ -530,7 +530,7 @@ const SellOrdersTab: React.FC<SellOrdersTabProps> = ({ copyTradingId, active = f
                         {t('copyTradingOrders.quantity') || '数量'}: {formatUSDC(order.quantity)} | {t('copyTradingOrders.price') || '价格'}: {formatUSDC(order.price)}
                       </div>
                       <div style={{ fontSize: '14px', fontWeight: '500', marginTop: '4px' }}>
-                        {t('copyTradingOrders.amount') || '金额'}: {formatUSDC(amount)} USDC
+                        {t('copyTradingOrders.amount') || '金额'}: ${formatUSDC(amount)}
                       </div>
                     </div>
 
@@ -541,7 +541,7 @@ const SellOrdersTab: React.FC<SellOrdersTabProps> = ({ copyTradingId, active = f
                         fontWeight: 'bold',
                         color: getPnlColor(order.realizedPnl)
                       }}>
-                        {formatUSDC(order.realizedPnl)} USDC
+                        ${formatUSDC(order.realizedPnl)}
                       </div>
                     </div>
 

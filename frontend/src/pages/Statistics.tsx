@@ -101,9 +101,8 @@ const Statistics: React.FC = () => {
             <Statistic
               title={t('statistics.totalPnl') || '总盈亏'}
               value={formatUSDC(stats?.totalPnl || '0')}
-              prefix={stats?.totalPnl && parseFloat(stats.totalPnl) >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+              prefix={<>{stats?.totalPnl && parseFloat(stats.totalPnl) >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} $</>}
               valueStyle={{ color: stats?.totalPnl && parseFloat(stats.totalPnl || '0') >= 0 ? '#3f8600' : '#cf1322' }}
-              suffix="USDC"
               loading={loading}
             />
           </Card>
@@ -124,9 +123,8 @@ const Statistics: React.FC = () => {
             <Statistic
               title={t('statistics.avgPnl') || '平均盈亏'}
               value={formatUSDC(stats?.avgPnl || '0')}
-              prefix={stats?.avgPnl && parseFloat(stats.avgPnl || '0') >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+              prefix={<>{stats?.avgPnl && parseFloat(stats.avgPnl || '0') >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />} $</>}
               valueStyle={{ color: stats?.avgPnl && parseFloat(stats.avgPnl || '0') >= 0 ? '#3f8600' : '#cf1322' }}
-              suffix="USDC"
               loading={loading}
             />
           </Card>
@@ -136,9 +134,8 @@ const Statistics: React.FC = () => {
             <Statistic
               title={t('statistics.maxProfit') || '最大盈利'}
               value={formatUSDC(stats?.maxProfit || '0')}
-              prefix={<ArrowUpOutlined />}
+              prefix={<><ArrowUpOutlined /> $</>}
               valueStyle={{ color: '#3f8600' }}
-              suffix="USDC"
               loading={loading}
             />
           </Card>
@@ -148,9 +145,8 @@ const Statistics: React.FC = () => {
             <Statistic
               title={t('statistics.maxLoss') || '最大亏损'}
               value={formatUSDC(stats?.maxLoss || '0')}
-              prefix={<ArrowDownOutlined />}
+              prefix={<><ArrowDownOutlined /> $</>}
               valueStyle={{ color: '#cf1322' }}
-              suffix="USDC"
               loading={loading}
             />
           </Card>
