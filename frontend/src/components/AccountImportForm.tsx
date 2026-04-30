@@ -524,7 +524,7 @@ const AccountImportForm: React.FC<AccountImportFormProps> = ({
                         </Space>
                         {!option.error && (
                           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ant-color-primary)' }}>
-                            {formatUSDC(option.totalBalance)} USDC
+                            ${formatUSDC(option.totalBalance)}
                           </span>
                         )}
                       </div>

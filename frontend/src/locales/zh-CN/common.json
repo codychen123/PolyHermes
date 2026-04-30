@@ -1801,5 +1801,14 @@
       "maxSizeUpdated": "已更新为最大数量",
       "periodChanged": "周期已切换，弹窗已关闭"
     }
+  },
+  "clobMigration": {
+    "title": "CLOB 2.0 迁移提醒",
+    "description": "Polymarket CLOB 已升级至 V2 版本，您需要前往账户页完成 USDC 迁移操作，以确保交易功能正常使用。",
+    "goToAccounts": "前往账户页",
+    "dontRemind": "不再提醒",
+    "accountGuide": "CLOB V2 需要 pUSD 进行交易，请点击账户操作栏中的 USDC.e → pUSD 按钮完成迁移。",
+    "accountGuideButton": "USDC.e → pUSD",
+    "dismissGuide": "知道了"
   }
 }

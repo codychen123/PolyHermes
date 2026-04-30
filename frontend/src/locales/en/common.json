@@ -1801,5 +1801,14 @@
       "maxSizeUpdated": "Updated to max size",
       "periodChanged": "Period has changed, popup closed"
     }
+  },
+  "clobMigration": {
+    "title": "CLOB 2.0 Migration Notice",
+    "description": "Polymarket CLOB has been upgraded to V2. Please go to the Accounts page to complete the USDC migration to ensure trading functions properly.",
+    "goToAccounts": "Go to Accounts",
+    "dontRemind": "Don't remind again",
+    "accountGuide": "CLOB V2 requires pUSD for trading. Click the USDC.e → pUSD button in the account actions to complete the migration.",
+    "accountGuideButton": "USDC.e → pUSD",
+    "dismissGuide": "Got it"
   }
 }

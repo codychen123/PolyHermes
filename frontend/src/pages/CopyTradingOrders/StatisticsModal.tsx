@@ -104,7 +104,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
             </div>
             <div style={{ fontSize: '16px', fontWeight: '500', color: '#333', flex: '1', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
               <ArrowUpOutlined style={{ color: '#1890ff', fontSize: '14px' }} />
-              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>{formatUSDC(statistics.totalBuyAmount)} USDC</span>
+              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>${formatUSDC(statistics.totalBuyAmount)}</span>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #f0f0f0' }}>
@@ -113,7 +113,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
             </div>
             <div style={{ fontSize: '16px', fontWeight: '500', color: '#333', flex: '1', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
               <ArrowDownOutlined style={{ color: '#ff4d4f', fontSize: '14px' }} />
-              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>{formatUSDC(statistics.totalSellAmount)} USDC</span>
+              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>${formatUSDC(statistics.totalSellAmount)}</span>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #f0f0f0' }}>
@@ -138,7 +138,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
             </div>
             <div style={{ fontSize: '16px', fontWeight: 'bold', color: getPnlColor(statistics.totalPnl), flex: '1', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
               {getPnlIcon(statistics.totalPnl)}
-              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>{formatUSDC(statistics.totalPnl)} USDC</span>
+              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>${formatUSDC(statistics.totalPnl)}</span>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #f0f0f0' }}>
@@ -147,7 +147,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
             </div>
             <div style={{ fontSize: '16px', fontWeight: '500', color: getPnlColor(statistics.totalRealizedPnl), flex: '1', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
               {getPnlIcon(statistics.totalRealizedPnl)}
-              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>{formatUSDC(statistics.totalRealizedPnl)} USDC</span>
+              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>${formatUSDC(statistics.totalRealizedPnl)}</span>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #f0f0f0' }}>
@@ -156,7 +156,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
             </div>
             <div style={{ fontSize: '16px', fontWeight: '500', color: getPnlColor(statistics.totalUnrealizedPnl), flex: '1', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
               {getPnlIcon(statistics.totalUnrealizedPnl)}
-              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>{formatUSDC(statistics.totalUnrealizedPnl)} USDC</span>
+              <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>${formatUSDC(statistics.totalUnrealizedPnl)}</span>
             </div>
           </div>
         </div>
@@ -181,16 +181,14 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
               <Statistic
                 title={t('copyTradingOrders.totalBuyAmount') || '总买入金额'}
                 value={formatUSDC(statistics.totalBuyAmount)}
-                suffix="USDC"
-                prefix={<ArrowUpOutlined style={{ color: '#1890ff' }} />}
+                prefix={<><ArrowUpOutlined style={{ color: '#1890ff' }} /> $</>}
               />
             </Col>
             <Col xs={24} sm={12} md={8}>
               <Statistic
                 title={t('copyTradingOrders.totalSellAmount') || '总卖出金额'}
                 value={formatUSDC(statistics.totalSellAmount)}
-                suffix="USDC"
-                prefix={<ArrowDownOutlined style={{ color: '#ff4d4f' }} />}
+                prefix={<><ArrowDownOutlined style={{ color: '#ff4d4f' }} /> $</>}
               />
             </Col>
             <Col xs={24} sm={12} md={8}>
@@ -211,27 +209,24 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
               <Statistic
                 title={t('copyTradingOrders.totalPnl') || '总盈亏（含未实现）'}
                 value={formatUSDC(statistics.totalPnl)}
-                suffix="USDC"
                 valueStyle={{ color: getPnlColor(statistics.totalPnl) }}
-                prefix={getPnlIcon(statistics.totalPnl)}
+                prefix={<>{getPnlIcon(statistics.totalPnl)} $</>}
               />
             </Col>
             <Col xs={24} sm={12} md={8}>
               <Statistic
                 title={t('copyTradingOrders.totalRealizedPnl') || '总已实现盈亏'}
                 value={formatUSDC(statistics.totalRealizedPnl)}
-                suffix="USDC"
                 valueStyle={{ color: getPnlColor(statistics.totalRealizedPnl) }}
-                prefix={getPnlIcon(statistics.totalRealizedPnl)}
+                prefix={<>{getPnlIcon(statistics.totalRealizedPnl)} $</>}
               />
             </Col>
             <Col xs={24} sm={12} md={8}>
               <Statistic
                 title={t('copyTradingOrders.totalUnrealizedPnl') || '总未实现盈亏'}
                 value={formatUSDC(statistics.totalUnrealizedPnl)}
-                suffix="USDC"
                 valueStyle={{ color: getPnlColor(statistics.totalUnrealizedPnl) }}
-                prefix={getPnlIcon(statistics.totalUnrealizedPnl)}
+                prefix={<>{getPnlIcon(statistics.totalUnrealizedPnl)} $</>}
               />
             </Col>
           </Row>

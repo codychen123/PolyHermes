@@ -493,7 +493,7 @@ const CryptoTailMonitor: React.FC = () => {
           } else {
             timeStr = '--'
           }
-          return `<span style="font-size:12px">${timeStr} &nbsp; ${Number(val).toFixed(2)} USDC</span>`
+          return `<span style="font-size:12px">${timeStr} &nbsp; $${Number(val).toFixed(2)}</span>`
         }
       },
       legend: {

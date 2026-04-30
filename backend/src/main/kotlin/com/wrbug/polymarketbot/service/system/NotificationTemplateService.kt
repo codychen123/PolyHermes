@@ -169,9 +169,9 @@ class NotificationTemplateService(
 • 方向: <b>{{side}}</b>
 • 价格: <code>{{price}}</code>
 • 数量: <code>{{quantity}}</code> shares
-• 金额: <code>{{amount}}</code> USDC
+• 金额: <code>${'$'}{{amount}}</code>
 • 账户: {{account_name}}
-• 可用余额: <code>{{available_balance}}</code> USDC
+• 可用余额: <code>${'$'}{{available_balance}}</code>
 
 ⏰ 时间: <code>{{time}}</code>
             """.trimIndent(),
@@ -184,7 +184,7 @@ class NotificationTemplateService(
 • 方向: <b>{{side}}</b>
 • 价格: <code>{{price}}</code>
 • 数量: <code>{{quantity}}</code> shares
-• 金额: <code>{{amount}}</code> USDC
+• 金额: <code>${'$'}{{amount}}</code>
 • 账户: {{account_name}}
 
 ⚠️ <b>错误信息：</b>
@@ -201,7 +201,7 @@ class NotificationTemplateService(
 • 方向: <b>{{side}}</b>
 • 价格: <code>{{price}}</code>
 • 数量: <code>{{quantity}}</code> shares
-• 金额: <code>{{amount}}</code> USDC
+• 金额: <code>${'$'}{{amount}}</code>
 • 账户: {{account_name}}
 
 ⚠️ <b>过滤类型：</b> <code>{{filter_type}}</code>
@@ -222,7 +222,7 @@ class NotificationTemplateService(
 • 方向: <b>{{side}}</b>
 • 价格: <code>{{price}}</code>
 • 数量: <code>{{quantity}}</code> shares
-• 金额: <code>{{amount}}</code> USDC
+• 金额: <code>${'$'}{{amount}}</code>
 • 账户: {{account_name}}
 
 ⏰ 时间: <code>{{time}}</code>
@@ -233,8 +233,8 @@ class NotificationTemplateService(
 📊 <b>赎回信息：</b>
 • 账户: {{account_name}}
 • 交易哈希: <code>{{transaction_hash}}</code>
-• 赎回总价值: <code>{{total_value}}</code> USDC
-• 可用余额: <code>{{available_balance}}</code> USDC
+• 赎回总价值: <code>${'$'}{{total_value}}</code>
+• 可用余额: <code>${'$'}{{available_balance}}</code>
 
 ⏰ 时间: <code>{{time}}</code>
             """.trimIndent(),
@@ -246,7 +246,7 @@ class NotificationTemplateService(
 
 • 账户: {{account_name}}
 • 交易哈希: <code>{{transaction_hash}}</code>
-• 可用余额: <code>{{available_balance}}</code> USDC
+• 可用余额: <code>${'$'}{{available_balance}}</code>
 
 ⏰ 时间: <code>{{time}}</code>
             """.trimIndent()

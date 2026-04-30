@@ -228,7 +228,7 @@ const MatchedOrdersTab: React.FC<MatchedOrdersTabProps> = ({ copyTradingId, acti
           fontWeight: 500,
           fontSize: isMobile ? 12 : 14
         }}>
-          {isMobile ? formatUSDC(value) : `${formatUSDC(value)} USDC`}
+          {isMobile ? formatUSDC(value) : `$${formatUSDC(value)}`}
         </span>
       )
     },
@@ -408,7 +408,7 @@ const MatchedOrdersTab: React.FC<MatchedOrdersTabProps> = ({ copyTradingId, acti
                         fontWeight: 'bold',
                         color: getPnlColor(order.realizedPnl)
                       }}>
-                        {formatUSDC(order.realizedPnl)} USDC
+                        ${formatUSDC(order.realizedPnl)}
                       </div>
                     </div>
 
