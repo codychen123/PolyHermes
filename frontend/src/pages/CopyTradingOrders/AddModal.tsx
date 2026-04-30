@@ -518,7 +518,7 @@ const AddModal: React.FC<AddModalProps> = ({
                       value={parseFloat(leaderAssetInfo.total)}
                       precision={4}
                       valueStyle={{ color: '#52c41a', fontWeight: 'bold', fontSize: '16px' }}
-                      suffix="USDC"
+                      prefix="$"
                       formatter={(value) => formatUSDC(value?.toString() || '0')}
                     />
                   </Col>
@@ -528,7 +528,7 @@ const AddModal: React.FC<AddModalProps> = ({
                       value={parseFloat(leaderAssetInfo.available)}
                       precision={4}
                       valueStyle={{ color: '#1890ff', fontSize: '14px' }}
-                      suffix="USDC"
+                      prefix="$"
                       formatter={(value) => formatUSDC(value?.toString() || '0')}
                     />
                   </Col>
@@ -538,7 +538,7 @@ const AddModal: React.FC<AddModalProps> = ({
                       value={parseFloat(leaderAssetInfo.position)}
                       precision={4}
                       valueStyle={{ color: '#722ed1', fontSize: '14px' }}
-                      suffix="USDC"
+                      prefix="$"
                       formatter={(value) => formatUSDC(value?.toString() || '0')}
                     />
                   </Col>
@@ -606,7 +606,7 @@ const AddModal: React.FC<AddModalProps> = ({
           
           {copyMode === 'FIXED' && (
             <Form.Item
-              label={t('copyTradingAdd.fixedAmount') || '固定跟单金额 (USDC)'}
+              label={t('copyTradingAdd.fixedAmount') || '固定跟单金额 ($)'}
               name="fixedAmount"
               rules={[
                 { required: true, message: t('copyTradingAdd.fixedAmountRequired') || '请输入固定跟单金额' },
@@ -645,7 +645,7 @@ const AddModal: React.FC<AddModalProps> = ({
           {copyMode === 'RATIO' && (
             <>
               <Form.Item
-                label={t('copyTradingAdd.maxOrderSize') || '单笔订单最大金额 (USDC)'}
+                label={t('copyTradingAdd.maxOrderSize') || '单笔订单最大金额 ($)'}
                 name="maxOrderSize"
                 tooltip={t('copyTradingAdd.maxOrderSizeTooltip') || '比例模式下，限制单笔跟单订单的最大金额上限'}
               >
@@ -665,7 +665,7 @@ const AddModal: React.FC<AddModalProps> = ({
               </Form.Item>
               
               <Form.Item
-                label={t('copyTradingAdd.minOrderSize') || '单笔订单最小金额 (USDC)'}
+                label={t('copyTradingAdd.minOrderSize') || '单笔订单最小金额 ($)'}
                 name="minOrderSize"
                 tooltip={t('copyTradingAdd.minOrderSizeTooltip') || '比例模式下，限制单笔跟单订单的最小金额下限，必须 >= 1'}
                 rules={[
@@ -700,7 +700,7 @@ const AddModal: React.FC<AddModalProps> = ({
           )}
           
           <Form.Item
-            label={t('copyTradingAdd.maxDailyLoss') || '每日最大亏损限制 (USDC)'}
+            label={t('copyTradingAdd.maxDailyLoss') || '每日最大亏损限制 ($)'}
             name="maxDailyLoss"
             tooltip={t('copyTradingAdd.maxDailyLossTooltip') || '限制每日最大亏损金额，用于风险控制'}
           >
@@ -709,7 +709,7 @@ const AddModal: React.FC<AddModalProps> = ({
               step={0.0001}
               precision={4}
               style={{ width: '100%' }}
-              placeholder={t('copyTradingAdd.maxDailyLossPlaceholder') || '默认 10000 USDC（可选）'}
+              placeholder={t('copyTradingAdd.maxDailyLossPlaceholder') || '默认 10000 $（可选）'}
               formatter={(value) => {
                 if (!value && value !== 0) return ''
                 const num = parseFloat(value.toString())
@@ -767,7 +767,7 @@ const AddModal: React.FC<AddModalProps> = ({
           </Form.Item>
           
           <Form.Item
-            label={t('copyTradingAdd.minOrderDepth') || '最小订单深度 (USDC)'}
+            label={t('copyTradingAdd.minOrderDepth') || '最小订单深度 ($)'}
             name="minOrderDepth"
             tooltip={t('copyTradingAdd.minOrderDepthTooltip') || '检查订单簿的总订单金额（买盘+卖盘），确保市场有足够的流动性。不填写则不启用此过滤'}
           >
@@ -853,7 +853,7 @@ const AddModal: React.FC<AddModalProps> = ({
           <Divider>{t('copyTradingAdd.positionLimitFilter') || '最大仓位限制'}</Divider>
           
           <Form.Item
-            label={t('copyTradingAdd.maxPositionValue') || '最大仓位金额 (USDC)'}
+            label={t('copyTradingAdd.maxPositionValue') || '最大仓位金额 ($)'}
             name="maxPositionValue"
             tooltip={t('copyTradingAdd.maxPositionValueTooltip') || '限制单个市场的最大仓位金额。如果该市场的当前仓位金额 + 跟单金额超过此限制，则不会下单。不填写则不启用此限制'}
           >
@@ -1082,7 +1082,7 @@ const AddModal: React.FC<AddModalProps> = ({
                 <span>
                   {record.copyMode === 'RATIO' 
                     ? `${t('copyTradingAdd.ratioMode') || '比例'} ${record.copyRatio}x`
-                    : `${t('copyTradingAdd.fixedAmountMode') || '固定'} ${formatUSDC(record.fixedAmount || '0')} USDC`
+                    : `${t('copyTradingAdd.fixedAmountMode') || '固定'} $${formatUSDC(record.fixedAmount || '0')}`
                   }
                 </span>
               )

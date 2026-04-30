@@ -39,8 +39,8 @@ class BlockchainService(
     
     private val logger = LoggerFactory.getLogger(BlockchainService::class.java)
     
-    // USDC 合约地址（Polygon 主网，Polymarket 使用 Polygon）
-    private val usdcContractAddress = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+    // pUSD 合约地址（Polygon 主网，Polymarket 使用 Polygon）
+    private val usdcContractAddress = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
     
     // Polymarket Safe 代理工厂合约地址（Polygon 主网，用于 MetaMask 用户）
     // 合约地址: 0xaacFeEa03eb1561C4e67d661e40682Bd20E3541b
@@ -56,7 +56,7 @@ class BlockchainService(
     // ConditionalTokens 合约地址（Polygon 主网）
     private val conditionalTokensAddress = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"
 
-    // Neg Risk WrappedCollateral 合约地址（Polygon，解包后得 USDC.e）
+    // Neg Risk WrappedCollateral 合约地址（Polygon）
     private val wcolContractAddress = "0x3A3BD7bb9528E159577F7C2e685CC81A765002E2"
     
     // 空集合ID（用于计算collectionId）
@@ -812,11 +812,11 @@ class BlockchainService(
     }
 
     /**
-     * 将代理钱包内的 WCOL 解包为 USDC.e（解包后转入代理地址）
-     * 赎回 Neg Risk 仓位后到账为 WCOL，调用此方法可转为 USDC.e 以便显示/使用。
+     * 将代理钱包内的 WCOL 执行解包（解包后转入代理地址）
+     * 赎回 Neg Risk 仓位后到账为 WCOL，调用此方法可执行解包后续资产处理。
      *
      * Safe 与 Magic 使用同一套逻辑：同一 [createUnwrapWcolTx] + [RelayClientService.execute]；
-     * Safe 走 execTransaction，Magic 走 PROXY 编码，最终均为代理合约调用 WCOL.unwrap(proxyAddress, amount)，USDC.e 转入 proxyAddress。
+     * Safe 走 execTransaction，Magic 走 PROXY 编码，最终均为代理合约调用 WCOL.unwrap(proxyAddress, amount)。
      *
      * @param privateKey 主钱包私钥
      * @param proxyAddress 代理地址（Safe 或 Magic 代理）
@@ -851,6 +851,99 @@ class BlockchainService(
             )
         } catch (e: Exception) {
             logger.error("WCOL 解包异常: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    // USDC.e 合约地址（仅用于 wrap 查询）
+    private val usdceContractAddress = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+
+    /**
+     * 查询 USDC.e 余额（用于 wrap 前检查）
+     */
+    suspend fun queryUsdceBalance(walletAddress: String): Result<BigDecimal> {
+        return try {
+            val rpcApi = polygonRpcApi
+            val functionSelector = "0x70a08231"
+            val paddedAddress = walletAddress.removePrefix("0x").lowercase().padStart(64, '0')
+            val data = functionSelector + paddedAddress
+            val rpcRequest = JsonRpcRequest(
+                method = "eth_call",
+                params = listOf(mapOf("to" to usdceContractAddress, "data" to data), "latest")
+            )
+            val response = rpcApi.call(rpcRequest)
+            if (!response.isSuccessful || response.body() == null) {
+                return Result.failure(Exception("RPC 请求失败"))
+            }
+            val hexBalance = response.body()!!.result?.asString ?: return Result.failure(Exception("result 为空"))
+            val balanceWei = BigInteger(hexBalance.removePrefix("0x"), 16)
+            Result.success(BigDecimal(balanceWei).divide(BigDecimal("1000000")))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 将 USDC.e wrap 为 pUSD
+     * 步骤：1) 检查 USDC.e 余额 → 2) approve CollateralOnramp → 3) wrap
+     */
+    suspend fun wrapUsdcToPusd(
+        privateKey: String,
+        proxyAddress: String,
+        walletType: WalletType
+    ): Result<String?> {
+        return try {
+            val balanceResult = queryUsdceBalance(proxyAddress)
+            val balance = balanceResult.getOrElse {
+                logger.warn("查询 USDC.e 余额失败: ${it.message}")
+                return Result.failure(it)
+            }
+            if (balance <= BigDecimal.ZERO) {
+                return Result.success(null)
+            }
+            val wrapAmountWei = balance.movePointRight(6).toBigInteger()
+            logger.info("开始 wrap USDC.e → pUSD: proxy=${proxyAddress.take(10)}..., amount=$balance")
+
+            val unlimitedAllowance = BigInteger.valueOf(2).pow(256).minus(BigInteger.ONE)
+            val approveTx = relayClientService.createUsdceApproveForWrapTx(unlimitedAllowance)
+            val wrapTx = relayClientService.createWrapToPusdTx(proxyAddress, wrapAmountWei)
+            if (walletType == WalletType.MAGIC) {
+                // MAGIC 账户走 PROXY 时，不使用 Safe MultiSend(delegatecall)；
+                // 改为顺序执行两笔 CALL，避免内层 delegatecall 回滚导致“外层成功但业务失败”。
+                val approveResult = relayClientService.execute(privateKey, proxyAddress, approveTx, walletType)
+                val approveHash = approveResult.getOrElse {
+                    logger.error("USDC.e approve 失败: ${it.message}", it)
+                    return Result.failure(it)
+                }
+                logger.info("USDC.e approve 成功: txHash=$approveHash")
+
+                val wrapResult = relayClientService.execute(privateKey, proxyAddress, wrapTx, walletType)
+                wrapResult.fold(
+                    onSuccess = { txHash ->
+                        logger.info("USDC.e → pUSD wrap 成功: txHash=$txHash")
+                        Result.success(txHash)
+                    },
+                    onFailure = { e ->
+                        logger.error("USDC.e → pUSD wrap 失败: ${e.message}", e)
+                        Result.failure(e)
+                    }
+                )
+            } else {
+                val safeTx = relayClientService.createMultiSendTx(listOf(approveTx, wrapTx))
+                val executeResult = relayClientService.execute(privateKey, proxyAddress, safeTx, walletType)
+                executeResult.fold(
+                    onSuccess = { txHash ->
+                        logger.info("USDC.e → pUSD wrap 成功: txHash=$txHash")
+                        Result.success(txHash)
+                    },
+                    onFailure = { e ->
+                        logger.error("USDC.e → pUSD wrap 失败: ${e.message}", e)
+                        Result.failure(e)
+                    }
+                )
+            }
+        } catch (e: Exception) {
+            logger.error("USDC.e → pUSD wrap 异常: ${e.message}", e)
             Result.failure(e)
         }
     }

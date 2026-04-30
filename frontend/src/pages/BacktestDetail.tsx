@@ -279,14 +279,14 @@ const BacktestDetail: React.FC = () => {
       render: (value: string) => parseFloat(value).toFixed(4)
     },
     {
-      title: t('backtest.amount') + ' (USDC)',
+      title: t('backtest.amount') + ' ($)',
       dataIndex: 'amount',
       key: 'amount',
       width: 120,
       render: (value: string) => formatUSDC(value)
     },
     {
-      title: t('backtest.balanceAfter') + ' (USDC)',
+      title: t('backtest.balanceAfter') + ' ($)',
       dataIndex: 'balanceAfter',
       key: 'balanceAfter',
       width: 120,
@@ -346,14 +346,14 @@ const BacktestDetail: React.FC = () => {
                 {task.leaderName || task.leaderAddress}
               </Descriptions.Item>
               <Descriptions.Item label={t('backtest.initialBalance')}>
-                {formatUSDC(task.initialBalance)} USDC
+                ${formatUSDC(task.initialBalance)}
               </Descriptions.Item>
               <Descriptions.Item label={t('backtest.finalBalance')}>
-                {task.finalBalance ? formatUSDC(task.finalBalance) + ' USDC' : '-'}
+                {task.finalBalance ? '$' + formatUSDC(task.finalBalance) : '-'}
               </Descriptions.Item>
               <Descriptions.Item label={t('backtest.profitAmount')}>
                 <span style={{ color: task.profitAmount && parseFloat(task.profitAmount) >= 0 ? '#52c41a' : '#ff4d4f' }}>
-                  {task.profitAmount ? formatUSDC(task.profitAmount) + ' USDC' : '-'}
+                  {task.profitAmount ? '$' + formatUSDC(task.profitAmount) : '-'}
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label={t('backtest.profitRate')}>

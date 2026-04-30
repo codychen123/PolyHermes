@@ -773,7 +773,7 @@ const CryptoTailStrategyList: React.FC = () => {
                         <div>
                           <div style={{ fontSize: '10px', color: '#8c8c8c' }}>{t('cryptoTailStrategy.list.totalRealizedPnl')}</div>
                           {item.totalRealizedPnl != null ? (
-                            <div style={{ fontSize: '14px', fontWeight: '600', color: pnlColor(item.totalRealizedPnl) }}>{formatUSDC(item.totalRealizedPnl)} USDC</div>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: pnlColor(item.totalRealizedPnl) }}>${formatUSDC(item.totalRealizedPnl)}</div>
                           ) : (
                             <div style={{ fontSize: '14px', color: '#8c8c8c' }}>-</div>
                           )}
@@ -966,7 +966,7 @@ const CryptoTailStrategyList: React.FC = () => {
                 </Form.Item>
               ) : (
                 <Form.Item name="amountValue" label={t('cryptoTailStrategy.form.fixedUsdc')} rules={[{ required: true }]}>
-                  <InputNumber min={1} style={{ width: '100%' }} addonAfter="USDC" stringMode />
+                  <InputNumber min={1} style={{ width: '100%' }} addonBefore="$" stringMode />
                 </Form.Item>
               )
             }
@@ -1111,7 +1111,7 @@ const CryptoTailStrategyList: React.FC = () => {
                         dataIndex: 'amountUsdc',
                         key: 'amountUsdc',
                         width: 110,
-                        render: (v: string) => `${formatUSDC(v)} USDC`
+                        render: (v: string) => `$${formatUSDC(v)}`
                       },
                       {
                         title: t('cryptoTailStrategy.triggerRecords.realizedPnl'),
@@ -1186,7 +1186,7 @@ const CryptoTailStrategyList: React.FC = () => {
                         dataIndex: 'amountUsdc',
                         key: 'amountUsdc',
                         width: 110,
-                        render: (v: string) => `${formatUSDC(v)} USDC`
+                        render: (v: string) => `$${formatUSDC(v)}`
                       },
                       {
                         title: t('cryptoTailStrategy.triggerRecords.failReason'),

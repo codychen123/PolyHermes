@@ -461,14 +461,14 @@ const BacktestList: React.FC = () => {
       render: (value: string) => parseFloat(value).toFixed(4)
     },
     {
-      title: t('backtest.amount') + ' (USDC)',
+      title: t('backtest.amount') + ' ($)',
       dataIndex: 'amount',
       key: 'amount',
       width: 120,
       render: (value: string) => formatUSDC(value)
     },
     {
-      title: t('backtest.balanceAfter') + ' (USDC)',
+      title: t('backtest.balanceAfter') + ' ($)',
       dataIndex: 'balanceAfter',
       key: 'balanceAfter',
       width: 120,
@@ -815,7 +815,7 @@ const BacktestList: React.FC = () => {
                         <div>
                           <div style={{ fontSize: '10px', color: '#8c8c8c' }}>{t('backtest.profitAmount')}</div>
                           {task.profitAmount != null ? (
-                            <div style={{ fontSize: '14px', fontWeight: '600', color: parseFloat(task.profitAmount) >= 0 ? '#52c41a' : '#ff4d4f' }}>{formatUSDC(task.profitAmount)} USDC</div>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: parseFloat(task.profitAmount) >= 0 ? '#52c41a' : '#ff4d4f' }}>${formatUSDC(task.profitAmount)}</div>
                           ) : (
                             <div style={{ fontSize: '14px', color: '#8c8c8c' }}>-</div>
                           )}
@@ -997,7 +997,7 @@ const BacktestList: React.FC = () => {
           <Row gutter={24}>
             <Col xs={24} sm={24} md={12}>
               <Form.Item
-                label={t('backtest.initialBalance') + ' (USDC)'}
+                label={t('backtest.initialBalance') + ' ($)'}
                 name="initialBalance"
                 rules={[
                   { required: true, message: t('backtest.initialBalanceRequired') || '请输入初始资金' },
@@ -1082,7 +1082,7 @@ const BacktestList: React.FC = () => {
 
             {copyMode === 'FIXED' && (
               <Form.Item
-                label={t('backtest.fixedAmount') + ' (USDC)'}
+                label={t('backtest.fixedAmount') + ' ($)'}
                 name="fixedAmount"
                 rules={[
                   { required: true, message: t('backtest.fixedAmountRequired') || '请输入固定金额' },
@@ -1101,7 +1101,7 @@ const BacktestList: React.FC = () => {
             <Row gutter={24}>
               <Col xs={24} sm={24} md={12}>
                 <Form.Item
-                  label={t('backtest.maxOrderSize') + ' (USDC)'}
+                  label={t('backtest.maxOrderSize') + ' ($)'}
                   name="maxOrderSize"
                   rules={[{ required: true }]}
                 >
@@ -1110,7 +1110,7 @@ const BacktestList: React.FC = () => {
               </Col>
               <Col xs={24} sm={24} md={12}>
                 <Form.Item
-                  label={t('backtest.minOrderSize') + ' (USDC)'}
+                  label={t('backtest.minOrderSize') + ' ($)'}
                   name="minOrderSize"
                   rules={[{ required: true }]}
                 >
@@ -1122,7 +1122,7 @@ const BacktestList: React.FC = () => {
             <Row gutter={24}>
               <Col xs={24} sm={24} md={12}>
                 <Form.Item
-                  label={t('backtest.maxDailyLoss') + ' (USDC)'}
+                  label={t('backtest.maxDailyLoss') + ' ($)'}
                   name="maxDailyLoss"
                   rules={[{ required: true }]}
                 >
@@ -1141,7 +1141,7 @@ const BacktestList: React.FC = () => {
             </Row>
 
             <Form.Item
-              label={t('backtest.maxPositionValue') + ' (USDC)'}
+              label={t('backtest.maxPositionValue') + ' ($)'}
               name="maxPositionValue"
             >
               <InputNumber
@@ -1316,14 +1316,14 @@ const BacktestList: React.FC = () => {
                   {detailTask.leaderName || `Leader ${detailTask.leaderId}`}
                 </Descriptions.Item>
                 <Descriptions.Item label={t('backtest.initialBalance')}>
-                  {formatUSDC(detailTask.initialBalance)} USDC
+                  ${formatUSDC(detailTask.initialBalance)}
                 </Descriptions.Item>
                 <Descriptions.Item label={t('backtest.finalBalance')}>
-                  {detailTask.finalBalance ? formatUSDC(detailTask.finalBalance) + ' USDC' : '-'}
+                  {detailTask.finalBalance ? '$' + formatUSDC(detailTask.finalBalance) : '-'}
                 </Descriptions.Item>
                 <Descriptions.Item label={t('backtest.profitAmount')}>
                   <span style={{ color: detailTask.profitAmount && parseFloat(detailTask.profitAmount) >= 0 ? '#52c41a' : '#ff4d4f' }}>
-                    {detailTask.profitAmount ? formatUSDC(detailTask.profitAmount) + ' USDC' : '-'}
+                    {detailTask.profitAmount ? '$' + formatUSDC(detailTask.profitAmount) : '-'}
                   </span>
                 </Descriptions.Item>
                 <Descriptions.Item label={t('backtest.profitRate')}>
@@ -1439,17 +1439,17 @@ const BacktestList: React.FC = () => {
                   <Descriptions.Item label={t('backtest.copyMode')}>
                     {detailConfig.copyMode === 'RATIO' 
                       ? `${t('backtest.copyModeRatio')} ${parseFloat(detailConfig.copyRatio) * 100}%`
-                      : `${t('backtest.copyModeFixed')} ${formatUSDC(detailConfig.fixedAmount)} USDC`
+                      : `${t('backtest.copyModeFixed')} $${formatUSDC(detailConfig.fixedAmount)}`
                     }
                   </Descriptions.Item>
                   <Descriptions.Item label={t('backtest.maxOrderSize')}>
-                    {formatUSDC(detailConfig.maxOrderSize)} USDC
+                    {'$' + formatUSDC(detailConfig.maxOrderSize)}
                   </Descriptions.Item>
                   <Descriptions.Item label={t('backtest.minOrderSize')}>
-                    {formatUSDC(detailConfig.minOrderSize)} USDC
+                    {'$' + formatUSDC(detailConfig.minOrderSize)}
                   </Descriptions.Item>
                   <Descriptions.Item label={t('backtest.maxDailyLoss')}>
-                    {formatUSDC(detailConfig.maxDailyLoss)} USDC
+                    {'$' + formatUSDC(detailConfig.maxDailyLoss)}
                   </Descriptions.Item>
                   <Descriptions.Item label={t('backtest.maxDailyOrders')}>
                     {detailConfig.maxDailyOrders}
@@ -1471,7 +1471,7 @@ const BacktestList: React.FC = () => {
                   )}
                   {detailConfig.maxPositionValue && (
                     <Descriptions.Item label={t('backtest.maxPositionValue')}>
-                      {formatUSDC(detailConfig.maxPositionValue)} USDC
+                      {'$' + formatUSDC(detailConfig.maxPositionValue)}
                     </Descriptions.Item>
                   )}
                   {(detailConfig.minPrice || detailConfig.maxPrice) && (

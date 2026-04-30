@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service
 
 /**
  * WCOL 解包轮询任务
- * 每 20 秒轮询一次，遍历所有账户的代理地址：若 WCOL 余额 > 0 则解包为 USDC.e。
+ * 每 20 秒轮询一次，遍历所有账户的代理地址：若 WCOL 余额 > 0 则执行解包。
  * 同一时间仅允许单次执行；若上次执行未结束则本次忽略（与现有轮询逻辑一致）。
  * 若未配置 Builder API Key，直接跳过本轮（解包依赖 Relayer Gasless，未配置则无法执行）。
  */

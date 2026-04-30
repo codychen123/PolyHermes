@@ -189,9 +189,9 @@ const TemplateEdit: React.FC = () => {
           
           {copyMode === 'FIXED' && (
             <Form.Item
-              label={t('templateEdit.fixedAmount') || '固定跟单金额 (USDC)'}
+              label={t('templateEdit.fixedAmount') || '固定跟单金额 ($)'}
               name="fixedAmount"
-              tooltip={t('templateEdit.fixedAmountTooltip') || '固定金额模式下，每次跟单的固定金额，不随 Leader 订单大小变化。必须 >= 1 USDC。例如：设置为 10，则无论 Leader 买入多少，跟单金额始终为 10 USDC。'}
+              tooltip={t('templateEdit.fixedAmountTooltip') || '固定金额模式下，每次跟单的固定金额，不随 Leader 订单大小变化。必须 >= $1。例如：设置为 10，则无论 Leader 买入多少，跟单金额始终为 $10。'}
               rules={[
                 { required: true, message: t('templateEdit.fixedAmountRequired') || '请输入固定跟单金额' },
                 { 
@@ -229,9 +229,9 @@ const TemplateEdit: React.FC = () => {
           {copyMode === 'RATIO' && (
             <>
               <Form.Item
-                label={t('templateEdit.maxOrderSize') || '单笔订单最大金额 (USDC)'}
+                label={t('templateEdit.maxOrderSize') || '单笔订单最大金额 ($)'}
                 name="maxOrderSize"
-                tooltip={t('templateEdit.maxOrderSizeTooltip') || '比例模式下，限制单笔跟单订单的最大金额上限，用于防止跟单金额过大，控制风险。例如：设置为 1000，即使计算出的跟单金额超过 1000，也会限制为 1000 USDC。'}
+                tooltip={t('templateEdit.maxOrderSizeTooltip') || '比例模式下，限制单笔跟单订单的最大金额上限，用于防止跟单金额过大，控制风险。例如：设置为 1000，即使计算出的跟单金额超过 1000，也会限制为 $1000。'}
               >
                 <InputNumber
                   min={0.0001}
@@ -249,9 +249,9 @@ const TemplateEdit: React.FC = () => {
               </Form.Item>
               
               <Form.Item
-                label={t('templateEdit.minOrderSize') || '单笔订单最小金额 (USDC)'}
+                label={t('templateEdit.minOrderSize') || '单笔订单最小金额 ($)'}
                 name="minOrderSize"
-                tooltip={t('templateEdit.minOrderSizeTooltip') || '比例模式下，限制单笔跟单订单的最小金额下限，用于过滤掉金额过小的订单，避免频繁小额交易。如果填写，必须 >= 1 USDC。例如：设置为 10，如果计算出的跟单金额小于 10，则跳过该订单。'}
+                tooltip={t('templateEdit.minOrderSizeTooltip') || '比例模式下，限制单笔跟单订单的最小金额下限，用于过滤掉金额过小的订单，避免频繁小额交易。如果填写，必须 >= $1。例如：设置为 10，如果计算出的跟单金额小于 10，则跳过该订单。'}
                 rules={[
                   { 
                     validator: (_, value) => {
@@ -318,7 +318,7 @@ const TemplateEdit: React.FC = () => {
           </Form.Item>
           
           <Form.Item
-            label={t('templateEdit.minOrderDepth') || '最小订单深度 (USDC)'}
+            label={t('templateEdit.minOrderDepth') || '最小订单深度 ($)'}
             name="minOrderDepth"
             tooltip={t('templateEdit.minOrderDepthTooltip') || '检查订单簿的总订单金额（买盘+卖盘），确保市场有足够的流动性。不填写则不启用此过滤'}
           >

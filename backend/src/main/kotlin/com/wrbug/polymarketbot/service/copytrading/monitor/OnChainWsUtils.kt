@@ -45,7 +45,9 @@ object OnChainWsUtils {
     }
     
     // 合约地址
-    const val USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+    const val PUSD_CONTRACT = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"         // V2 pUSD
+    const val USDC_CONTRACT = PUSD_CONTRACT  // 默认使用 pUSD
+    private val COLLATERAL_CONTRACTS = setOf(PUSD_CONTRACT.lowercase())
     const val ERC1155_CONTRACT = "0x4d97dcd97ec945f40cf65f87097ace5ea0476045"
     const val ERC20_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
     const val ERC1155_TRANSFER_SINGLE_TOPIC = "0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62"
@@ -96,8 +98,8 @@ object OnChainWsUtils {
             val t0 = topics[0].lowercase()
             val data = log.get("data")?.asString ?: "0x"
             
-            // USDC ERC20 Transfer
-            if (address == USDC_CONTRACT.lowercase() && t0 == ERC20_TRANSFER_TOPIC && topics.size >= 3) {
+            // 抵押品 ERC20 Transfer（当前仅匹配 pUSD）
+            if (address in COLLATERAL_CONTRACTS && t0 == ERC20_TRANSFER_TOPIC && topics.size >= 3) {
                 val from = topicToAddress(topics[1])
                 val to = topicToAddress(topics[2])
                 val value = hexToBigInt(data)
@@ -149,6 +151,42 @@ object OnChainWsUtils {
         return Pair(erc20, erc1155)
     }
     
+    /**
+     * 通过 CLOB 交易历史获取 Leader 真实成交价（用于无 USDC 转账的 ERC1155-only 场景）
+     * 查询该 token 最近的成交记录，匹配 side 方向的第一条作为成交价
+     * 返回 usdcRaw = price × sizeRaw
+     */
+    private suspend fun fetchEstimatedUsdcRaw(
+        tokenId: String,
+        side: String,
+        sizeRaw: BigInteger,
+        retrofitFactory: RetrofitFactory
+    ): BigInteger? {
+        return try {
+            val clobApi = retrofitFactory.createClobApiWithoutAuth()
+            val response = clobApi.getTrades(asset_id = tokenId)
+            if (!response.isSuccessful || response.body() == null) {
+                logger.warn("CLOB 交易历史查询失败: tokenId=$tokenId, code=${response.code()}")
+                return null
+            }
+            val trades = response.body()!!.data
+            val clobSide = side.lowercase()
+            val matchedTrade = trades.firstOrNull { it.side.equals(clobSide, ignoreCase = true) }
+            if (matchedTrade == null) {
+                logger.warn("CLOB 交易历史中未找到匹配成交: tokenId=$tokenId, side=$clobSide, totalTrades=${trades.size}")
+                return null
+            }
+            val price = matchedTrade.price.toBigDecimal()
+            val usdcRaw = price.multiply(sizeRaw.toBigDecimal())
+                .setScale(0, java.math.RoundingMode.DOWN).toBigInteger()
+            logger.debug("CLOB 交易历史估算: tokenId=$tokenId, side=$clobSide, tradePrice=${matchedTrade.price}, tradeSize=${matchedTrade.size}, sizeRaw=$sizeRaw, usdcRaw=$usdcRaw")
+            usdcRaw
+        } catch (e: Exception) {
+            logger.warn("获取 CLOB 交易历史失败: tokenId=$tokenId, side=$side, error=${e.message}")
+            null
+        }
+    }
+
     /**
      * 从 Transfer 日志解析交易信息
      */
@@ -205,6 +243,32 @@ object OnChainWsUtils {
             asset = bestOutId
             sizeRaw = bestOutVal
             usdcRaw = usdcIn
+        } else if (bestInId != null && bestInVal > BigInteger.ZERO && bestOutId == null
+            && usdcOut == BigInteger.ZERO && usdcIn == BigInteger.ZERO
+        ) {
+            // BUY（无 USDC）: 只收到 ERC1155 token，无 USDC 流动（CLOB 内部结算等场景）
+            side = "BUY"
+            asset = bestInId
+            sizeRaw = bestInVal
+            usdcRaw = fetchEstimatedUsdcRaw(bestInId.toString(), "BUY", bestInVal, retrofitFactory)
+                ?: run {
+                    logger.warn("无法获取估算价格（ERC1155-only BUY）: txHash=$txHash, tokenId=$bestInId")
+                    return null
+                }
+            logger.debug("ERC1155-only BUY: txHash=$txHash, tokenId=$bestInId, sizeRaw=$sizeRaw, usdcRaw=$usdcRaw")
+        } else if (bestOutId != null && bestOutVal > BigInteger.ZERO && bestInId == null
+            && usdcOut == BigInteger.ZERO && usdcIn == BigInteger.ZERO
+        ) {
+            // SELL（无 USDC）: 只发出 ERC1155 token，无 USDC 流动
+            side = "SELL"
+            asset = bestOutId
+            sizeRaw = bestOutVal
+            usdcRaw = fetchEstimatedUsdcRaw(bestOutId.toString(), "SELL", bestOutVal, retrofitFactory)
+                ?: run {
+                    logger.warn("无法获取估算价格（ERC1155-only SELL）: txHash=$txHash, tokenId=$bestOutId")
+                    return null
+                }
+            logger.debug("ERC1155-only SELL: txHash=$txHash, tokenId=$bestOutId, sizeRaw=$sizeRaw, usdcRaw=$usdcRaw")
         } else {
             // 无法判断交易方向
             logger.debug("无法判断交易方向: txHash=$txHash, bestInId=$bestInId, bestInVal=$bestInVal, bestOutId=$bestOutId, bestOutVal=$bestOutVal, usdcOut=$usdcOut, usdcIn=$usdcIn")

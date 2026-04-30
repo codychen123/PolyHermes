@@ -118,7 +118,7 @@ const OrderList: React.FC = () => {
       key: 'pnl',
       render: (pnl: string | undefined) => pnl ? (
         <span style={{ color: pnl.startsWith('-') ? 'red' : 'green' }}>
-          {formatUSDC(pnl)} USDC
+          ${formatUSDC(pnl)}
         </span>
       ) : '-'
     },

@@ -41,6 +41,7 @@ import { wsManager } from './services/websocket'
 import type { OrderPushMessage } from './types'
 import { apiService } from './services/api'
 import { hasToken } from './utils'
+import ClobMigrationModal, { STORAGE_KEY as CLOB_MIGRATION_KEY } from './components/ClobMigrationModal'
 
 /**
  * 路由保护组件
@@ -64,6 +65,7 @@ function App() {
   const { t, i18n } = useTranslation()
   const [isFirstUse, setIsFirstUse] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(true)
+  const [clobMigrationVisible, setClobMigrationVisible] = useState(false)
   
   // 根据当前语言设置 Ant Design 的 locale
   const getAntdLocale = () => {
@@ -199,6 +201,13 @@ function App() {
       wsManager.disconnect()
     }
   }, [checking, isFirstUse])
+
+  // 已登录且未查看过 CLOB V2 迁移提醒时显示弹窗
+  useEffect(() => {
+    if (!checking && isFirstUse === false && hasToken() && !localStorage.getItem(CLOB_MIGRATION_KEY)) {
+      setClobMigrationVisible(true)
+    }
+  }, [checking, isFirstUse])
   
   // 订阅订单推送并显示全局通知
   useEffect(() => {
@@ -284,6 +293,7 @@ function App() {
           {/* 默认重定向到登录页 */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        <ClobMigrationModal open={clobMigrationVisible} onClose={() => setClobMigrationVisible(false)} />
       </BrowserRouter>
     </ConfigProvider>
   )

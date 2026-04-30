@@ -130,7 +130,7 @@ const CopyTradingMatchedOrdersPage: React.FC = () => {
           fontWeight: 500,
           fontSize: isMobile ? 12 : 14
         }}>
-          {isMobile ? formatUSDC(value) : `${formatUSDC(value)} USDC`}
+          {isMobile ? formatUSDC(value) : `$${formatUSDC(value)}`}
         </span>
       )
     },
@@ -262,7 +262,7 @@ const CopyTradingMatchedOrdersPage: React.FC = () => {
                           fontWeight: 'bold',
                           color: getPnlColor(order.realizedPnl)
                         }}>
-                          {formatUSDC(order.realizedPnl)} USDC
+                          ${formatUSDC(order.realizedPnl)}
                         </div>
                       </div>
                       

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Card, Table, Button, Space, Tag, Popconfirm, message, Typography, Spin, Modal, Descriptions, Divider, Form, Input, Alert, Tooltip, List, Empty } from 'antd'
-import { PlusOutlined, ReloadOutlined, EditOutlined, CopyOutlined, EyeOutlined, DeleteOutlined, WalletOutlined } from '@ant-design/icons'
+import { PlusOutlined, ReloadOutlined, EditOutlined, CopyOutlined, EyeOutlined, DeleteOutlined, WalletOutlined, SwapOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useAccountStore } from '../store/accountStore'
 import type { Account } from '../types'
@@ -8,6 +8,7 @@ import { useMediaQuery } from 'react-responsive'
 import { formatUSDC } from '../utils'
 import AccountImportForm from '../components/AccountImportForm'
 import AccountSetupStatusBlock from '../components/AccountSetupStatusBlock'
+import apiService from '../services/api'
 
 const { Title } = Typography
 
@@ -27,10 +28,56 @@ const AccountList: React.FC = () => {
   const [editLoading, setEditLoading] = useState(false)
   const [accountImportModalVisible, setAccountImportModalVisible] = useState(false)
   const [accountImportForm] = Form.useForm()
+  const [wrapLoading, setWrapLoading] = useState<Record<number, boolean>>({})
+  const [migrationGuideVisible, setMigrationGuideVisible] = useState(false)
+
+  const ACCOUNT_GUIDE_KEY = 'clob_v2_account_guide_dismissed'
+  const handleWrapToPusd = async (account: Account) => {
+    try {
+      setWrapLoading(prev => ({ ...prev, [account.id]: true }))
+      const res = await apiService.accounts.getUsdceBalance(account.id)
+      if (res.data.code !== 0 || !res.data.data) {
+        message.error(res.data.msg || '查询 USDC.e 余额失败')
+        return
+      }
+      const balance = parseFloat(res.data.data.balance)
+      if (balance <= 0) {
+        message.info('USDC.e 余额为 0，无需迁移')
+        return
+      }
+      Modal.confirm({
+        title: 'USDC.e → pUSD 迁移',
+        content: `检测到 ${balance.toFixed(2)} USDC.e，将全部 wrap 为 pUSD。确认继续？`,
+        okText: '确认迁移',
+        cancelText: '取消',
+        onOk: async () => {
+          const wrapRes = await apiService.accounts.wrapToPusd(account.id)
+          if (wrapRes.data.code === 0) {
+            const txHash = wrapRes.data.data?.transactionHash
+            message.success(txHash ? `迁移成功，交易: ${txHash.slice(0, 10)}...` : '迁移成功（无需操作）')
+            fetchAccountBalance(account.id)
+          } else {
+            message.error(wrapRes.data.msg || '迁移失败')
+          }
+        }
+      })
+    } catch (e: any) {
+      message.error(e.message || '迁移失败')
+    } finally {
+      setWrapLoading(prev => ({ ...prev, [account.id]: false }))
+    }
+  }
 
   useEffect(() => {
     fetchAccounts()
   }, [fetchAccounts])
+
+  // 首次进入且有账户时显示迁移引导
+  useEffect(() => {
+    if (!loading && accounts.length > 0 && !localStorage.getItem(ACCOUNT_GUIDE_KEY)) {
+      setMigrationGuideVisible(true)
+    }
+  }, [loading, accounts.length])
 
   const handleAccountImportSuccess = async () => {
     message.success(t('accountImport.importSuccess'))
@@ -325,7 +372,7 @@ const AccountList: React.FC = () => {
         }
         const balanceObj = balanceMap[record.id]
         const balance = balanceObj?.total || record.balance || '-'
-        return balance && balance !== '-' && typeof balance === 'string' ? `${formatUSDC(balance)} USDC` : '-'
+        return balance && balance !== '-' && typeof balance === 'string' ? `$${formatUSDC(balance)}` : '-'
       }
     },
     {
@@ -371,6 +418,26 @@ const AccountList: React.FC = () => {
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               <EditOutlined style={{ fontSize: '16px', color: '#1890ff' }} />
+            </div>
+          </Tooltip>
+
+          <Tooltip title="USDC.e → pUSD">
+            <div
+              onClick={() => handleWrapToPusd(record)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                cursor: wrapLoading[record.id] ? 'wait' : 'pointer',
+                borderRadius: '6px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fff7e6'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <SwapOutlined style={{ fontSize: '16px', color: '#fa8c16' }} spin={wrapLoading[record.id]} />
             </div>
           </Tooltip>
 
@@ -438,6 +505,38 @@ const AccountList: React.FC = () => {
         </Tooltip>
       </div>
 
+      {migrationGuideVisible && !loading && accounts.length > 0 && (
+        <Alert
+          message={t('clobMigration.accountGuide')}
+          type="warning"
+          showIcon
+          icon={<SwapOutlined />}
+          closable
+          onClose={() => {
+            localStorage.setItem(ACCOUNT_GUIDE_KEY, 'true')
+            setMigrationGuideVisible(false)
+          }}
+          afterClose={() => {
+            localStorage.setItem(ACCOUNT_GUIDE_KEY, 'true')
+            setMigrationGuideVisible(false)
+          }}
+          style={{ marginBottom: 16, ...(isMobile ? { margin: '0 8px 12px' } : {}) }}
+          action={
+            <Button
+              size="small"
+              type="primary"
+              danger
+              onClick={() => {
+                localStorage.setItem(ACCOUNT_GUIDE_KEY, 'true')
+                setMigrationGuideVisible(false)
+              }}
+            >
+              {t('clobMigration.dismissGuide')}
+            </Button>
+          }
+        />
+      )}
+
       <Card style={{
         margin: isMobile ? '0 -8px' : '0',
         borderRadius: isMobile ? '0' : undefined
@@ -504,7 +603,7 @@ const AccountList: React.FC = () => {
                             {t('accountList.totalBalance')}
                           </div>
                           <div style={{ fontSize: '14px', fontWeight: '600', color: '#52c41a' }}>
-                            {balance?.total && balance.total !== '-' ? `${formatUSDC(balance.total)} USDC` : '- USDC'}
+                            {balance?.total && balance.total !== '-' ? `$${formatUSDC(balance.total)}` : '-'}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
@@ -565,6 +664,16 @@ const AccountList: React.FC = () => {
                         >
                           <EditOutlined style={{ fontSize: '18px', color: '#52c41a' }} />
                           <span style={{ fontSize: '10px', color: '#8c8c8c', marginTop: '2px' }}>{t('accountList.edit')}</span>
+                        </div>
+                      </Tooltip>
+
+                      <Tooltip title={t('clobMigration.accountGuideButton')}>
+                        <div
+                          onClick={() => handleWrapToPusd(account)}
+                          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: wrapLoading[account.id] ? 'wait' : 'pointer', padding: '4px 8px' }}
+                        >
+                          <SwapOutlined style={{ fontSize: '18px', color: '#fa8c16' }} spin={wrapLoading[account.id]} />
+                          <span style={{ fontSize: '10px', color: '#8c8c8c', marginTop: '2px' }}>{t('clobMigration.accountGuideButton')}</span>
                         </div>
                       </Tooltip>
 
@@ -728,7 +837,7 @@ const AccountList: React.FC = () => {
                   <Spin size="small" />
                 ) : detailBalance ? (
                   <span style={{ fontWeight: 'bold', color: '#1890ff', fontSize: '16px' }}>
-                    {formatUSDC(detailBalance.total)} USDC
+                    ${formatUSDC(detailBalance.total)}
                   </span>
                 ) : (
                   <span style={{ color: '#999' }}>-</span>
@@ -739,7 +848,7 @@ const AccountList: React.FC = () => {
                   <Spin size="small" />
                 ) : detailBalance ? (
                   <span style={{ color: '#52c41a' }}>
-                    {formatUSDC(detailBalance.available)} USDC
+                    ${formatUSDC(detailBalance.available)}
                   </span>
                 ) : (
                   <span style={{ color: '#999' }}>-</span>
@@ -750,7 +859,7 @@ const AccountList: React.FC = () => {
                   <Spin size="small" />
                 ) : detailBalance ? (
                   <span style={{ color: '#1890ff' }}>
-                    {formatUSDC(detailBalance.position)} USDC
+                    ${formatUSDC(detailBalance.position)}
                   </span>
                 ) : (
                   <span style={{ color: '#999' }}>-</span>
@@ -806,7 +915,7 @@ const AccountList: React.FC = () => {
                           fontWeight: 'bold',
                           color: detailAccount.totalPnl && detailAccount.totalPnl.startsWith('-') ? '#ff4d4f' : '#52c41a'
                         }}>
-                          {formatUSDC(detailAccount.totalPnl)} USDC
+                          ${formatUSDC(detailAccount.totalPnl)}
                         </span>
                       </Descriptions.Item>
                     )}
