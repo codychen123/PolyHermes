@@ -6,6 +6,7 @@ import { formatUSDC } from '../../utils'
 import { useTranslation } from 'react-i18next'
 import { useMediaQuery } from 'react-responsive'
 import type { CopyTradingStatistics } from '../../types'
+import CopyTradingRiskSeatbeltPanel from '../../components/CopyTradingRiskSeatbeltPanel'
 
 interface StatisticsModalProps {
   open: boolean
@@ -159,6 +160,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
               <span style={{ fontSize: 'clamp(12px, 4vw, 16px)' }}>${formatUSDC(statistics.totalUnrealizedPnl)}</span>
             </div>
           </div>
+          <CopyTradingRiskSeatbeltPanel statistics={statistics} onApplied={fetchStatistics} compact />
         </div>
       ) : (
         <div>
@@ -230,6 +232,7 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
               />
             </Col>
           </Row>
+          <CopyTradingRiskSeatbeltPanel statistics={statistics} onApplied={fetchStatistics} compact />
         </div>
       )}
     </Modal>
@@ -237,4 +240,3 @@ const StatisticsModal: React.FC<StatisticsModalProps> = ({
 }
 
 export default StatisticsModal
-

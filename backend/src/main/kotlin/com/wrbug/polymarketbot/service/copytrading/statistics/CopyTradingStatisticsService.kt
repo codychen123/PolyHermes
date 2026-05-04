@@ -30,6 +30,7 @@ class CopyTradingStatisticsService(
     private val sellMatchDetailRepository: SellMatchDetailRepository,
     private val accountRepository: AccountRepository,
     private val leaderRepository: LeaderRepository,
+    private val filteredOrderRepository: FilteredOrderRepository,
     private val marketService: com.wrbug.polymarketbot.service.common.MarketService,
     private val blockchainService: BlockchainService
 ) {
@@ -62,8 +63,8 @@ class CopyTradingStatisticsService(
             
             // 6. 获取当前价格并计算真实口径统计
             // currentPositionCost 使用跟单系统记录的剩余仓位成本；currentPositionValue 使用
-            // Polymarket Data API 当前价格按剩余份额估值。若某个未平仓仓位没有报价，按 0
-            // 估值，避免已归零/待赎回仓位继续被统计成成本价。
+            // Polymarket Data API 当前价格按剩余份额估值。缺失报价仍按 0 参与旧字段计算，
+            // 但必须通过 quote status 告诉 UI 这是已确认归零、未匹配还是接口不可用。
             val hasOpenPosition = buyOrders.any { it.remainingQuantity.toSafeBigDecimal().gt(BigDecimal.ZERO) }
             val quotes = if (hasOpenPosition) {
                 buildPositionValuationQuotes(account?.proxyAddress)
@@ -71,6 +72,15 @@ class CopyTradingStatisticsService(
                 emptyList()
             }
             val statistics = CopyTradingPnlCalculator.calculate(buyOrders, sellRecords, matchDetails, quotes)
+            val filteredOrderCount = filteredOrderRepository.countByCopyTradingId(copyTradingId)
+            val diagnosis = CopyTradingRiskDiagnosisService.buildDiagnosis(
+                copyTrading = copyTrading,
+                buyOrders = buyOrders,
+                sellRecordsCount = sellRecords.size,
+                matchDetails = matchDetails,
+                filteredOrderCount = filteredOrderCount,
+                pnl = statistics
+            )
             
             // 7. 构建响应（总盈亏 = 已实现盈亏 + 未实现盈亏）
             val response = CopyTradingStatisticsResponse(
@@ -90,6 +100,14 @@ class CopyTradingStatisticsService(
                 currentPositionQuantity = statistics.currentPositionQuantity.toString(),
                 currentPositionCost = statistics.currentPositionCost.toString(),
                 currentPositionValue = statistics.currentPositionValue.toString(),
+                zeroValuePositionCost = statistics.zeroValuePositionCost.toString(),
+                confirmedZeroValuePositionCost = statistics.confirmedZeroValuePositionCost.toString(),
+                quoteOverallStatus = statistics.quoteStatusSummary.overallStatus.name,
+                quoteAvailableCount = statistics.quoteStatusSummary.availableCount,
+                quoteNoMatchCount = statistics.quoteStatusSummary.noMatchCount,
+                quoteUnavailableCount = statistics.quoteStatusSummary.unavailableCount,
+                quoteIncomplete = statistics.quoteStatusSummary.overallStatus != PositionQuoteStatus.AVAILABLE,
+                riskDiagnosis = diagnosis,
                 totalRealizedPnl = statistics.totalRealizedPnl.toString(),
                 totalUnrealizedPnl = statistics.totalUnrealizedPnl.toString(),
                 totalPnl = statistics.totalPnl.toString(),
@@ -121,8 +139,9 @@ class CopyTradingStatisticsService(
         return try {
             val positionsResult = blockchainService.getPositions(normalizedProxyAddress)
             if (positionsResult.isFailure) {
-                logger.warn("获取持仓报价失败: proxyAddress=${normalizedProxyAddress.take(10)}..., error=${positionsResult.exceptionOrNull()?.message}")
-                return emptyList()
+                val reason = positionsResult.exceptionOrNull()?.message
+                logger.warn("获取持仓报价失败: proxyAddress=${normalizedProxyAddress.take(10)}..., error=$reason")
+                return listOf(PositionValuationQuote.unavailable(reason = reason))
             }
 
             val quotes = positionsResult.getOrNull().orEmpty().mapNotNull { position ->
@@ -145,7 +164,7 @@ class CopyTradingStatisticsService(
             quotes
         } catch (e: Exception) {
             logger.warn("获取持仓报价异常: proxyAddress=${normalizedProxyAddress.take(10)}..., error=${e.message}", e)
-            emptyList()
+            listOf(PositionValuationQuote.unavailable(reason = e.message))
         }
     }
 

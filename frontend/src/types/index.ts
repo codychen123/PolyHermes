@@ -308,6 +308,89 @@ export interface CopyTradingListResponse {
   total: number
 }
 
+export type LeaderPoolStatus = 'CANDIDATE' | 'WATCH' | 'PAPER' | 'TRIAL' | 'ACTIVE' | 'COOLDOWN' | 'RETIRED'
+
+export interface LeaderPoolSummary {
+  totalCount: number
+  trialCount: number
+  estimatedWorstExposure: string
+  pendingRiskCount: number
+  defaultExperimentBudget: string
+}
+
+export interface LeaderPoolItem {
+  id: number
+  leaderId: number
+  leaderName?: string
+  leaderAddress: string
+  category?: string
+  profileUrl: string
+  status: LeaderPoolStatus
+  source: string
+  sourceRank?: number
+  score?: string
+  reason?: string
+  notes?: string
+  suggestedFixedAmount: string
+  suggestedMaxDailyOrders: number
+  suggestedMaxDailyLoss: string
+  suggestedMinPrice?: string
+  suggestedMaxPrice?: string
+  suggestedMaxPositionValue?: string
+  copyTradingCount: number
+  hasEnabledCopyTrading: boolean
+  estimatedWorstExposure: string
+  lastReviewedAt?: number
+  lastPromotedAt?: number
+  cooldownUntil?: number
+  locked: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface LeaderPoolListResponse {
+  summary: LeaderPoolSummary
+  list: LeaderPoolItem[]
+  total: number
+}
+
+export interface LeaderPoolListRequest {
+  status?: LeaderPoolStatus
+}
+
+export interface LeaderPoolAddRequest {
+  leaderId: number
+  source?: string
+  reason?: string
+  notes?: string
+}
+
+export interface LeaderPoolUpdateStatusRequest {
+  poolId: number
+  status: LeaderPoolStatus
+  cooldownUntil?: number
+  locked?: boolean
+}
+
+export interface LeaderPoolUpdatePlanRequest {
+  poolId: number
+  suggestedFixedAmount?: string
+  suggestedMaxDailyOrders?: number
+  suggestedMaxDailyLoss?: string
+  suggestedMinPrice?: string
+  suggestedMaxPrice?: string
+  suggestedMaxPositionValue?: string
+  reason?: string
+  notes?: string
+}
+
+export interface LeaderPoolCreateTrialConfigRequest {
+  poolId: number
+  accountId: number
+  enableImmediately?: boolean
+  confirm?: boolean
+}
+
 /**
  * 跟单创建请求
  * 所有配置参数都需要手动输入，模板仅用于前端快速填充表单
@@ -707,12 +790,59 @@ export interface CopyTradingStatistics {
   currentPositionQuantity: string
   currentPositionCost: string
   currentPositionValue: string  // 按当前价格估算的持仓市值
+  zeroValuePositionCost?: string
+  confirmedZeroValuePositionCost?: string
+  quoteOverallStatus?: 'AVAILABLE' | 'NO_MATCH' | 'UNAVAILABLE'
+  quoteAvailableCount?: number
+  quoteNoMatchCount?: number
+  quoteUnavailableCount?: number
+  quoteIncomplete?: boolean
+  riskDiagnosis?: CopyTradingRiskDiagnosis | null
   
   // 盈亏统计
   totalRealizedPnl: string
   totalUnrealizedPnl: string
   totalPnl: string
   totalPnlPercent: string
+}
+
+export interface CopyTradingRiskDiagnosis {
+  copyTradingId: number
+  totalRealizedPnl: string
+  totalUnrealizedPnl: string
+  totalPnl: string
+  currentPositionCost: string
+  currentPositionValue: string
+  zeroValuePositionCost: string
+  confirmedZeroValuePositionCost: string
+  zeroSellLoss: string
+  openPositionQuantity: string
+  totalBuyOrders: number
+  totalSellRecords: number
+  totalMatchDetails: number
+  filteredOrderCount: number
+  sampleSize: number
+  lowConfidence: boolean
+  confidenceReason: string
+  quoteOverallStatus: 'AVAILABLE' | 'NO_MATCH' | 'UNAVAILABLE'
+  quoteAvailableCount: number
+  quoteNoMatchCount: number
+  quoteUnavailableCount: number
+  dataIncomplete: boolean
+  missingSources: string[]
+  topLosingMarkets: Array<{
+    marketId: string
+    realizedPnl: string
+    matchedOrders: number
+  }>
+  riskWarnings: Array<{
+    field: string
+    currentValue: string | null
+    suggestedValue: string
+    severity: 'LOW' | 'MEDIUM' | 'HIGH'
+    reason: string
+  }>
+  generatedAt: number
 }
 
 /**

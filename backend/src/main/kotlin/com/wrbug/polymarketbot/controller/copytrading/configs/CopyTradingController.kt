@@ -112,6 +112,43 @@ class CopyTradingController(
             ResponseEntity.ok(ApiResponse.error(ErrorCode.SERVER_COPY_TRADING_UPDATE_FAILED, e.message, messageSource))
         }
     }
+
+    /**
+     * 应用诊断建议的保守风控配置。
+     */
+    @PostMapping("/apply-conservative-config")
+    fun applyConservativeConfig(@RequestBody request: ApplyConservativeConfigRequest): ResponseEntity<ApiResponse<CopyTradingDto>> {
+        return try {
+            if (request.copyTradingId <= 0) {
+                return ResponseEntity.ok(ApiResponse.error(ErrorCode.PARAM_COPY_TRADING_ID_INVALID, messageSource = messageSource))
+            }
+
+            val result = copyTradingService.applyConservativeConfig(request)
+            result.fold(
+                onSuccess = { copyTrading ->
+                    ResponseEntity.ok(ApiResponse.success(copyTrading))
+                },
+                onFailure = { e ->
+                    logger.error("应用保守配置失败: ${e.message}", e)
+                    when (e) {
+                        is IllegalArgumentException -> {
+                            val errorCode = if (e.message == "跟单配置不存在") {
+                                ErrorCode.COPY_TRADING_NOT_FOUND
+                            } else {
+                                ErrorCode.PARAM_ERROR
+                            }
+                            ResponseEntity.ok(ApiResponse.error(errorCode, e.message, messageSource))
+                        }
+                        is IllegalStateException -> ResponseEntity.ok(ApiResponse.error(ErrorCode.BUSINESS_ERROR, e.message, messageSource))
+                        else -> ResponseEntity.ok(ApiResponse.error(ErrorCode.SERVER_COPY_TRADING_UPDATE_FAILED, e.message, messageSource))
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            logger.error("应用保守配置异常: ${e.message}", e)
+            ResponseEntity.ok(ApiResponse.error(ErrorCode.SERVER_COPY_TRADING_UPDATE_FAILED, e.message, messageSource))
+        }
+    }
     
     /**
      * 更新跟单状态（兼容旧接口）
@@ -219,4 +256,3 @@ class CopyTradingController(
         }
     }
 }
-

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Table, Button, Space, Tag, Popconfirm, message, List, Empty, Spin, Divider, Typography, Modal, Descriptions, Statistic, Row, Col, Tooltip, Badge } from 'antd'
-import { PlusOutlined, EditOutlined, DeleteOutlined, GlobalOutlined, EyeOutlined, ReloadOutlined, WalletOutlined, CopyOutlined, LineChartOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DeleteOutlined, GlobalOutlined, EyeOutlined, ReloadOutlined, WalletOutlined, CopyOutlined, LineChartOutlined, TeamOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { apiService } from '../services/api'
 import type { Leader, LeaderBalanceResponse } from '../types'
@@ -18,6 +18,7 @@ const LeaderList: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [balanceMap, setBalanceMap] = useState<Record<number, { total: string; available: string; position: string }>>({})
   const [balanceLoading, setBalanceLoading] = useState<Record<number, boolean>>({})
+  const [addingToPool, setAddingToPool] = useState<Record<number, boolean>>({})
 
   // 详情 Modal
   const [detailModalVisible, setDetailModalVisible] = useState(false)
@@ -92,6 +93,31 @@ const LeaderList: React.FC = () => {
       }
     } catch (error: any) {
       message.error(error.message || t('leaderList.deleteFailed'))
+    }
+  }
+
+  const handleAddToPool = async (leader: Leader) => {
+    setAddingToPool(prev => ({ ...prev, [leader.id]: true }))
+    try {
+      const response = await apiService.leaderPool.add({ leaderId: leader.id })
+      if (response.data.code === 0) {
+        message.success({
+          content: (
+            <Space>
+              <span>{t('leaderList.addToPoolSuccess')}</span>
+              <Button type="link" size="small" onClick={() => navigate('/leader-pool')}>
+                {t('leaderList.goLeaderPool')}
+              </Button>
+            </Space>
+          )
+        })
+      } else {
+        message.warning(response.data.msg || t('leaderList.addToPoolExists'))
+      }
+    } catch (error: any) {
+      message.error(error.message || t('leaderList.addToPoolFailed'))
+    } finally {
+      setAddingToPool(prev => ({ ...prev, [leader.id]: false }))
     }
   }
 
@@ -383,6 +409,26 @@ const LeaderList: React.FC = () => {
               <Badge count={record.backtestCount} size="small" offset={[-4, -4]}>
                 <LineChartOutlined style={{ fontSize: '16px', color: '#1890ff' }} />
               </Badge>
+            </div>
+          </Tooltip>
+
+          <Tooltip title={t('leaderList.addToPool')}>
+            <div
+              onClick={() => !addingToPool[record.id] && handleAddToPool(record)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                cursor: addingToPool[record.id] ? 'wait' : 'pointer',
+                borderRadius: '6px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f0f0'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <TeamOutlined style={{ fontSize: '16px', color: '#52c41a' }} />
             </div>
           </Tooltip>
 
