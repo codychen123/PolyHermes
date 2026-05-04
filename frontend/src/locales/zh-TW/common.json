@@ -566,6 +566,15 @@
     "safetyHint": "Leader 池不會自動加倉，也不會自動啟用大額跟單。",
     "safetyDesc": "從池子創建試跟配置時會使用保守默認值，並默認禁用。你可以之後在跟單配置頁手動啟用。",
     "fetchFailed": "獲取 Leader 池失敗",
+    "statuses": {
+      "CANDIDATE": "候選",
+      "WATCH": "觀察",
+      "PAPER": "模擬",
+      "TRIAL": "小額試跟",
+      "ACTIVE": "活躍",
+      "COOLDOWN": "冷卻",
+      "RETIRED": "淘汰"
+    },
     "selectLeaderPlaceholder": "選擇已有 Leader 加入池子",
     "selectLeaderFirst": "請先選擇一個 Leader",
     "addExistingLeader": "加入池子",

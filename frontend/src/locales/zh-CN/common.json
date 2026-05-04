@@ -566,6 +566,15 @@
     "safetyHint": "Leader 池不会自动加仓，也不会自动启用大额跟单。",
     "safetyDesc": "从池子创建试跟配置时会使用保守默认值，并默认禁用。你可以之后在跟单配置页手动启用。",
     "fetchFailed": "获取 Leader 池失败",
+    "statuses": {
+      "CANDIDATE": "候选",
+      "WATCH": "观察",
+      "PAPER": "模拟",
+      "TRIAL": "小额试跟",
+      "ACTIVE": "活跃",
+      "COOLDOWN": "冷却",
+      "RETIRED": "淘汰"
+    },
     "selectLeaderPlaceholder": "选择已有 Leader 加入池子",
     "selectLeaderFirst": "请先选择一个 Leader",
     "addExistingLeader": "加入池子",

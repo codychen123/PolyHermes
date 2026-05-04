@@ -566,6 +566,15 @@
     "safetyHint": "Leader Pool will not auto-scale positions or auto-enable large copy trading.",
     "safetyDesc": "Trial configs created from the pool use conservative defaults and are disabled by default.",
     "fetchFailed": "Failed to fetch Leader Pool",
+    "statuses": {
+      "CANDIDATE": "Candidate",
+      "WATCH": "Watch",
+      "PAPER": "Paper",
+      "TRIAL": "Trial",
+      "ACTIVE": "Active",
+      "COOLDOWN": "Cooldown",
+      "RETIRED": "Retired"
+    },
     "selectLeaderPlaceholder": "Select an existing Leader to add",
     "selectLeaderFirst": "Please select a Leader first",
     "addExistingLeader": "Add to Pool",

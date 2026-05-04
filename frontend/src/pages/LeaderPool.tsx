@@ -40,16 +40,6 @@ const VISIBLE_STATUSES: Array<{ value: LeaderPoolStatus; color: string }> = [
 
 type LeaderPoolFilterValue = LeaderPoolStatus | 'ALL'
 
-const statusLabels: Record<LeaderPoolStatus, string> = {
-  CANDIDATE: '候选',
-  WATCH: '观察',
-  PAPER: '模拟',
-  TRIAL: '小额试跟',
-  ACTIVE: '活跃',
-  COOLDOWN: '冷却',
-  RETIRED: '淘汰'
-}
-
 const formatDate = (timestamp?: number) => {
   if (!timestamp) return '-'
   return dayjs(timestamp).format('YYYY-MM-DD HH:mm')
@@ -82,6 +72,9 @@ const LeaderPool: React.FC = () => {
   const [statusForm] = Form.useForm()
   const [planForm] = Form.useForm()
   const [trialForm] = Form.useForm()
+
+  const statusLabel = (status: LeaderPoolStatus) =>
+    t(`leaderPool.statuses.${status}`, { defaultValue: status })
 
   const fetchPool = async (status = statusFilter) => {
     setLoading(true)
@@ -285,7 +278,7 @@ const LeaderPool: React.FC = () => {
       width: 120,
       render: (status: LeaderPoolStatus) => {
         const meta = VISIBLE_STATUSES.find(item => item.value === status)
-        return <Tag color={meta?.color || 'default'}>{statusLabels[status] || status}</Tag>
+        return <Tag color={meta?.color || 'default'}>{statusLabel(status)}</Tag>
       }
     },
     {
@@ -431,7 +424,7 @@ const LeaderPool: React.FC = () => {
               onChange={(value: LeaderPoolFilterValue) => setStatusFilter(value === 'ALL' ? undefined : value)}
               options={[
                 { value: 'ALL', label: t('common.all') },
-                ...VISIBLE_STATUSES.map(item => ({ value: item.value, label: statusLabels[item.value] }))
+                ...VISIBLE_STATUSES.map(item => ({ value: item.value, label: statusLabel(item.value) }))
               ]}
             />
             <Table
@@ -461,7 +454,7 @@ const LeaderPool: React.FC = () => {
       >
         <Form form={statusForm} layout="vertical">
           <Form.Item name="status" label={t('common.status')} rules={[{ required: true }]}>
-            <Select options={VISIBLE_STATUSES.map(item => ({ value: item.value, label: statusLabels[item.value] }))} />
+            <Select options={VISIBLE_STATUSES.map(item => ({ value: item.value, label: statusLabel(item.value) }))} />
           </Form.Item>
           <Form.Item shouldUpdate noStyle>
             {({ getFieldValue }) => getFieldValue('status') === 'COOLDOWN' ? (
