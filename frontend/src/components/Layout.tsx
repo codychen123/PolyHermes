@@ -74,7 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const getInitialOpenKeys = (): string[] => {
     const path = location.pathname
     const keys: string[] = []
-    if (path.startsWith('/leaders') || path.startsWith('/templates') || path.startsWith('/copy-trading') || path.startsWith('/backtest')) {
+    if (path.startsWith('/leaders') || path.startsWith('/leader-pool') || path.startsWith('/templates') || path.startsWith('/copy-trading') || path.startsWith('/backtest')) {
       keys.push('/copy-trading-management')
     }
     if (path.startsWith('/crypto-tail-strategy') || path.startsWith('/crypto-tail-monitor')) {
@@ -92,7 +92,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     const path = location.pathname
     const keys: string[] = []
-    if (path.startsWith('/leaders') || path.startsWith('/templates') || path.startsWith('/copy-trading') || path.startsWith('/backtest')) {
+    if (path.startsWith('/leaders') || path.startsWith('/leader-pool') || path.startsWith('/templates') || path.startsWith('/copy-trading') || path.startsWith('/backtest')) {
       keys.push('/copy-trading-management')
     }
     if (path.startsWith('/crypto-tail-strategy') || path.startsWith('/crypto-tail-monitor')) {
@@ -147,6 +147,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           key: '/copy-trading',
           icon: <LinkOutlined />,
           label: t('menu.copyTradingConfig')
+        },
+        {
+          key: '/leader-pool',
+          icon: <TeamOutlined />,
+          label: t('menu.leaderPool')
         },
         {
           key: '/leaders',
@@ -504,4 +509,3 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 }
 
 export default Layout
-

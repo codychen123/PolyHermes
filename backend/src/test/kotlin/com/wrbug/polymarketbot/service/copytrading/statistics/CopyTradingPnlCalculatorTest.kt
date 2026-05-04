@@ -50,10 +50,14 @@ class CopyTradingPnlCalculatorTest {
         assertEquals("1.50", stats.totalRealizedPnl.toPlainString())
         assertEquals("-0.05", stats.totalPnl.toPlainString())
         assertEquals("-0.71", stats.totalPnlPercent.toPlainString())
+        assertEquals(PositionQuoteStatus.AVAILABLE, stats.quoteStatusSummary.overallStatus)
+        assertEquals(2, stats.quoteStatusSummary.availableCount)
+        assertEquals(0, stats.quoteStatusSummary.noMatchCount)
+        assertEquals(0, stats.quoteStatusSummary.unavailableCount)
     }
 
     @Test
-    fun `treats tracked open positions without a quote as zero current value`() {
+    fun `reports no match separately from available zero valuation`() {
         val buyOrders = listOf(
             buyOrder(
                 id = 1,
@@ -78,6 +82,121 @@ class CopyTradingPnlCalculatorTest {
         assertEquals("-2.00", stats.totalUnrealizedPnl.toPlainString())
         assertEquals("-2.00", stats.totalPnl.toPlainString())
         assertEquals("-100.00", stats.totalPnlPercent.toPlainString())
+        assertEquals(PositionQuoteStatus.NO_MATCH, stats.quoteStatusSummary.overallStatus)
+        assertEquals(0, stats.quoteStatusSummary.availableCount)
+        assertEquals(1, stats.quoteStatusSummary.noMatchCount)
+        assertEquals(0, stats.quoteStatusSummary.unavailableCount)
+        assertEquals("2.00", stats.zeroValuePositionCost.toPlainString())
+        assertEquals("0", stats.confirmedZeroValuePositionCost.toPlainString())
+    }
+
+    @Test
+    fun `reports unavailable quotes separately from confirmed zero valuation`() {
+        val buyOrders = listOf(
+            buyOrder(
+                id = 1,
+                marketId = "unavailable-market",
+                outcomeIndex = 0,
+                quantity = "8",
+                price = "0.25",
+                matchedQuantity = "0",
+                remainingQuantity = "8"
+            )
+        )
+
+        val stats = CopyTradingPnlCalculator.calculate(
+            buyOrders = buyOrders,
+            sellRecords = emptyList(),
+            matchDetails = emptyList(),
+            quotes = listOf(
+                PositionValuationQuote.unavailable(reason = "positions timeout")
+            )
+        )
+
+        assertEquals("2.00", stats.currentPositionCost.toPlainString())
+        assertEquals("0", stats.currentPositionValue.toPlainString())
+        assertEquals(PositionQuoteStatus.UNAVAILABLE, stats.quoteStatusSummary.overallStatus)
+        assertEquals(0, stats.quoteStatusSummary.availableCount)
+        assertEquals(0, stats.quoteStatusSummary.noMatchCount)
+        assertEquals(1, stats.quoteStatusSummary.unavailableCount)
+        assertEquals("2.00", stats.zeroValuePositionCost.toPlainString())
+        assertEquals("0", stats.confirmedZeroValuePositionCost.toPlainString())
+    }
+
+    @Test
+    fun `counts available zero price as confirmed zero valuation`() {
+        val buyOrders = listOf(
+            buyOrder(
+                id = 1,
+                marketId = "settled-market",
+                outcomeIndex = 0,
+                quantity = "8",
+                price = "0.25",
+                matchedQuantity = "0",
+                remainingQuantity = "8"
+            )
+        )
+
+        val stats = CopyTradingPnlCalculator.calculate(
+            buyOrders = buyOrders,
+            sellRecords = emptyList(),
+            matchDetails = emptyList(),
+            quotes = listOf(
+                PositionValuationQuote(marketId = "settled-market", outcomeIndex = 0, side = "0", currentPrice = BigDecimal.ZERO)
+            )
+        )
+
+        assertEquals("2.00", stats.currentPositionCost.toPlainString())
+        assertEquals("0", stats.currentPositionValue.toPlainString())
+        assertEquals(PositionQuoteStatus.AVAILABLE, stats.quoteStatusSummary.overallStatus)
+        assertEquals(1, stats.quoteStatusSummary.availableCount)
+        assertEquals(0, stats.quoteStatusSummary.noMatchCount)
+        assertEquals(0, stats.quoteStatusSummary.unavailableCount)
+        assertEquals("2.00", stats.zeroValuePositionCost.toPlainString())
+        assertEquals("2.00", stats.confirmedZeroValuePositionCost.toPlainString())
+    }
+
+    @Test
+    fun `summarizes mixed available no match and unavailable quote states`() {
+        val buyOrders = listOf(
+            buyOrder(
+                id = 1,
+                marketId = "settled-market",
+                outcomeIndex = 0,
+                quantity = "8",
+                price = "0.25",
+                matchedQuantity = "0",
+                remainingQuantity = "8"
+            ),
+            buyOrder(
+                id = 2,
+                marketId = "missing-market",
+                outcomeIndex = 0,
+                quantity = "4",
+                price = "0.50",
+                matchedQuantity = "0",
+                remainingQuantity = "4"
+            )
+        )
+
+        val stats = CopyTradingPnlCalculator.calculate(
+            buyOrders = buyOrders,
+            sellRecords = emptyList(),
+            matchDetails = emptyList(),
+            quotes = listOf(
+                PositionValuationQuote(marketId = "settled-market", outcomeIndex = 0, side = "0", currentPrice = BigDecimal.ZERO),
+                PositionValuationQuote.unavailable(reason = "positions timeout")
+            )
+        )
+
+        assertEquals("4.00", stats.currentPositionCost.toPlainString())
+        assertEquals("0", stats.currentPositionValue.toPlainString())
+        assertEquals(PositionQuoteStatus.UNAVAILABLE, stats.quoteStatusSummary.overallStatus)
+        assertEquals(1, stats.quoteStatusSummary.availableCount)
+        assertEquals(0, stats.quoteStatusSummary.noMatchCount)
+        assertEquals(1, stats.quoteStatusSummary.unavailableCount)
+        assertEquals("4.00", stats.zeroValuePositionCost.toPlainString())
+        assertEquals("2.00", stats.confirmedZeroValuePositionCost.toPlainString())
     }
 
     private fun buyOrder(

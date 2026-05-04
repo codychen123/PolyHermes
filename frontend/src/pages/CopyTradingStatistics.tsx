@@ -6,6 +6,7 @@ import { apiService } from '../services/api'
 import { formatUSDC, formatNumber } from '../utils'
 import { useMediaQuery } from 'react-responsive'
 import type { CopyTradingStatistics } from '../types'
+import CopyTradingRiskSeatbeltPanel from '../components/CopyTradingRiskSeatbeltPanel'
 
 const CopyTradingStatisticsPage: React.FC = () => {
   const { copyTradingId } = useParams<{ copyTradingId: string }>()
@@ -263,9 +264,10 @@ const CopyTradingStatisticsPage: React.FC = () => {
           </Col>
         </Row>
       </Card>
+
+      <CopyTradingRiskSeatbeltPanel statistics={statistics} onApplied={fetchStatistics} />
     </div>
   )
 }
 
 export default CopyTradingStatisticsPage
-

@@ -46,10 +46,30 @@ object CopyTradingPnlCalculator {
         val openOrders = buyOrders.filter { it.remainingQuantity.toSafeBigDecimal().gt(BigDecimal.ZERO) }
         val currentPositionQuantity = openOrders.sumOf { it.remainingQuantity.toSafeBigDecimal() }
         val currentPositionCost = openOrders.sumOf { it.remainingQuantity.toSafeBigDecimal().multi(it.price) }
-        val currentPositionValue = openOrders.sumOf { order ->
-            val currentPrice = findQuote(order, quotes)?.currentPrice ?: BigDecimal.ZERO
-            order.remainingQuantity.toSafeBigDecimal().multi(currentPrice)
+        val hasUnavailableQuotes = quotes.any { it.status == PositionQuoteStatus.UNAVAILABLE }
+        val quotedOpenPositions = openOrders.map { order ->
+            val quote = findQuote(order, quotes)
+            val status = when {
+                quote?.status == PositionQuoteStatus.AVAILABLE -> PositionQuoteStatus.AVAILABLE
+                hasUnavailableQuotes -> PositionQuoteStatus.UNAVAILABLE
+                else -> PositionQuoteStatus.NO_MATCH
+            }
+            QuotedOpenPosition(
+                order = order,
+                status = status,
+                currentPrice = quote?.currentPrice ?: BigDecimal.ZERO
+            )
         }
+        val currentPositionValue = quotedOpenPositions.sumOf { position ->
+            position.order.remainingQuantity.toSafeBigDecimal().multi(position.currentPrice)
+        }
+        val zeroValuePositionCost = quotedOpenPositions
+            .filter { it.currentPrice.lte(BigDecimal.ZERO) }
+            .sumOf { it.order.remainingQuantity.toSafeBigDecimal().multi(it.order.price) }
+        val confirmedZeroValuePositionCost = quotedOpenPositions
+            .filter { it.status == PositionQuoteStatus.AVAILABLE && it.currentPrice.lte(BigDecimal.ZERO) }
+            .sumOf { it.order.remainingQuantity.toSafeBigDecimal().multi(it.order.price) }
+        val quoteStatusSummary = QuoteStatusSummary.from(quotedOpenPositions.map { it.status })
 
         val totalRealizedPnl = matchDetails.sumOf { it.realizedPnl.toSafeBigDecimal() }
         val totalUnrealizedPnl = currentPositionValue.subtract(currentPositionCost)
@@ -66,6 +86,9 @@ object CopyTradingPnlCalculator {
             currentPositionQuantity = currentPositionQuantity,
             currentPositionCost = currentPositionCost,
             currentPositionValue = currentPositionValue,
+            zeroValuePositionCost = zeroValuePositionCost,
+            confirmedZeroValuePositionCost = confirmedZeroValuePositionCost,
+            quoteStatusSummary = quoteStatusSummary,
             totalRealizedPnl = totalRealizedPnl,
             totalUnrealizedPnl = totalUnrealizedPnl,
             totalPnl = totalPnl,
@@ -99,6 +122,59 @@ data class PositionValuationQuote(
     val marketId: String,
     val outcomeIndex: Int?,
     val side: String?,
+    val currentPrice: BigDecimal,
+    val status: PositionQuoteStatus = PositionQuoteStatus.AVAILABLE,
+    val failureReason: String? = null
+) {
+    companion object {
+        fun unavailable(reason: String? = null): PositionValuationQuote {
+            return PositionValuationQuote(
+                marketId = "__unavailable__",
+                outcomeIndex = null,
+                side = null,
+                currentPrice = BigDecimal.ZERO,
+                status = PositionQuoteStatus.UNAVAILABLE,
+                failureReason = reason
+            )
+        }
+    }
+}
+
+enum class PositionQuoteStatus {
+    AVAILABLE,
+    NO_MATCH,
+    UNAVAILABLE
+}
+
+data class QuoteStatusSummary(
+    val overallStatus: PositionQuoteStatus,
+    val availableCount: Int,
+    val noMatchCount: Int,
+    val unavailableCount: Int
+) {
+    companion object {
+        fun from(statuses: List<PositionQuoteStatus>): QuoteStatusSummary {
+            val unavailableCount = statuses.count { it == PositionQuoteStatus.UNAVAILABLE }
+            val noMatchCount = statuses.count { it == PositionQuoteStatus.NO_MATCH }
+            val availableCount = statuses.count { it == PositionQuoteStatus.AVAILABLE }
+            val overallStatus = when {
+                unavailableCount > 0 -> PositionQuoteStatus.UNAVAILABLE
+                noMatchCount > 0 -> PositionQuoteStatus.NO_MATCH
+                else -> PositionQuoteStatus.AVAILABLE
+            }
+            return QuoteStatusSummary(
+                overallStatus = overallStatus,
+                availableCount = availableCount,
+                noMatchCount = noMatchCount,
+                unavailableCount = unavailableCount
+            )
+        }
+    }
+}
+
+private data class QuotedOpenPosition(
+    val order: CopyOrderTracking,
+    val status: PositionQuoteStatus,
     val currentPrice: BigDecimal
 )
 
@@ -113,6 +189,9 @@ data class CopyTradingPnlStatistics(
     val currentPositionQuantity: BigDecimal,
     val currentPositionCost: BigDecimal,
     val currentPositionValue: BigDecimal,
+    val zeroValuePositionCost: BigDecimal,
+    val confirmedZeroValuePositionCost: BigDecimal,
+    val quoteStatusSummary: QuoteStatusSummary,
     val totalRealizedPnl: BigDecimal,
     val totalUnrealizedPnl: BigDecimal,
     val totalPnl: BigDecimal,

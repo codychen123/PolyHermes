@@ -1,5 +1,20 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
-import type { ApiResponse, NotificationConfig, NotificationConfigRequest, NotificationConfigUpdateRequest, NotificationTemplate, TemplateTypeInfo, TemplateVariablesResponse } from '../types'
+import type {
+  ApiResponse,
+  LeaderPoolAddRequest,
+  LeaderPoolCreateTrialConfigRequest,
+  LeaderPoolItem,
+  LeaderPoolListRequest,
+  LeaderPoolListResponse,
+  LeaderPoolUpdatePlanRequest,
+  LeaderPoolUpdateStatusRequest,
+  NotificationConfig,
+  NotificationConfigRequest,
+  NotificationConfigUpdateRequest,
+  NotificationTemplate,
+  TemplateTypeInfo,
+  TemplateVariablesResponse
+} from '../types'
 import { getToken, setToken, removeToken } from '../utils'
 import { wsManager } from './websocket'
 import i18n from '../i18n/config'
@@ -358,6 +373,29 @@ export const apiService = {
     balance: (data: { leaderId: number }) =>
       apiClient.post<ApiResponse<any>>('/copy-trading/leaders/balance', data)
   },
+
+  /**
+   * Leader 池 API
+   */
+  leaderPool: {
+    list: (data: LeaderPoolListRequest = {}) =>
+      apiClient.post<ApiResponse<LeaderPoolListResponse>>('/copy-trading/leader-pool/list', data),
+
+    add: (data: LeaderPoolAddRequest) =>
+      apiClient.post<ApiResponse<LeaderPoolItem>>('/copy-trading/leader-pool/add', data),
+
+    updateStatus: (data: LeaderPoolUpdateStatusRequest) =>
+      apiClient.post<ApiResponse<LeaderPoolItem>>('/copy-trading/leader-pool/update-status', data),
+
+    updatePlan: (data: LeaderPoolUpdatePlanRequest) =>
+      apiClient.post<ApiResponse<LeaderPoolItem>>('/copy-trading/leader-pool/update-plan', data),
+
+    createTrialConfig: (data: LeaderPoolCreateTrialConfigRequest) =>
+      apiClient.post<ApiResponse<any>>('/copy-trading/leader-pool/create-trial-config', data),
+
+    remove: (data: { poolId: number }) =>
+      apiClient.post<ApiResponse<void>>('/copy-trading/leader-pool/remove', data)
+  },
   
   /**
    * 跟单模板管理 API（子菜单：跟单模板）
@@ -570,6 +608,21 @@ export const apiService = {
      */
     detail: (data: { copyTradingId: number }) => 
       apiClient.post<ApiResponse<any>>('/copy-trading/statistics/detail', data)
+  },
+
+  safetyConfig: {
+    applyConservative: (data: {
+      copyTradingId: number
+      confirm: boolean
+      maxDailyOrders?: number
+      maxDailyLoss?: string
+      minPrice?: string
+      maxPrice?: string
+      maxPositionValue?: string
+      minOrderDepth?: string
+      maxSpread?: string
+      priceTolerance?: string
+    }) => apiClient.post<ApiResponse<any>>('/copy-trading/configs/apply-conservative-config', data)
   },
   
   /**
@@ -950,4 +1003,3 @@ export const backtestService = {
    */
   rerun: (data: { id: number; taskName?: string }) => apiClient.post('/backtest/tasks/rerun', data)
 }
-

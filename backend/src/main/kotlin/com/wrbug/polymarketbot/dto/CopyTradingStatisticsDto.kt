@@ -26,12 +26,63 @@ data class CopyTradingStatisticsResponse(
     val currentPositionQuantity: String,
     val currentPositionCost: String,
     val currentPositionValue: String,
+    val zeroValuePositionCost: String = "0",
+    val confirmedZeroValuePositionCost: String = "0",
+    val quoteOverallStatus: String = "AVAILABLE",
+    val quoteAvailableCount: Int = 0,
+    val quoteNoMatchCount: Int = 0,
+    val quoteUnavailableCount: Int = 0,
+    val quoteIncomplete: Boolean = false,
+    val riskDiagnosis: CopyTradingRiskDiagnosisDto? = null,
     
     // 盈亏统计
     val totalRealizedPnl: String,
     val totalUnrealizedPnl: String,
     val totalPnl: String,
     val totalPnlPercent: String
+)
+
+data class CopyTradingRiskDiagnosisDto(
+    val copyTradingId: Long,
+    val totalRealizedPnl: String,
+    val totalUnrealizedPnl: String,
+    val totalPnl: String,
+    val currentPositionCost: String,
+    val currentPositionValue: String,
+    val zeroValuePositionCost: String,
+    val confirmedZeroValuePositionCost: String,
+    val zeroSellLoss: String,
+    val openPositionQuantity: String,
+    val totalBuyOrders: Int,
+    val totalSellRecords: Int,
+    val totalMatchDetails: Int,
+    val filteredOrderCount: Long,
+    val sampleSize: Int,
+    val lowConfidence: Boolean,
+    val confidenceReason: String,
+    val quoteOverallStatus: String,
+    val quoteAvailableCount: Int,
+    val quoteNoMatchCount: Int,
+    val quoteUnavailableCount: Int,
+    val dataIncomplete: Boolean,
+    val missingSources: List<String>,
+    val topLosingMarkets: List<TopLosingMarketDto>,
+    val riskWarnings: List<RiskWarningDto>,
+    val generatedAt: Long
+)
+
+data class TopLosingMarketDto(
+    val marketId: String,
+    val realizedPnl: String,
+    val matchedOrders: Int
+)
+
+data class RiskWarningDto(
+    val field: String,
+    val currentValue: String?,
+    val suggestedValue: String,
+    val severity: String,
+    val reason: String
 )
 
 /**
@@ -209,4 +260,3 @@ data class StatisticsResponse(
     val maxProfit: String,
     val maxLoss: String
 )
-
