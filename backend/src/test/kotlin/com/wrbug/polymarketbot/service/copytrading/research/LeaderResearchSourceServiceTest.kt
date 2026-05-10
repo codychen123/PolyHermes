@@ -74,6 +74,7 @@ class LeaderResearchSourceServiceTest {
         assertEquals(5, results.size)
         assertEquals(1, results.first { it.sourceType == LeaderResearchSourceType.WATCHLIST }.candidates.size)
         assertEquals(LeaderResearchSourceStatus.DEGRADED, results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.status)
+        assertTrue(results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.expectedLimitation)
         assertEquals(LeaderResearchSourceStatus.DISABLED, results.first { it.sourceType == LeaderResearchSourceType.GLOBAL_ACTIVITY_CAPTURE }.status)
         val preserved = results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.candidates.single()
         assertTrue(preserved.locked)
@@ -107,6 +108,7 @@ class LeaderResearchSourceServiceTest {
         assertEquals(LeaderResearchSourceStatus.DEGRADED, results.first { it.sourceType == LeaderResearchSourceType.WATCHLIST }.status)
         assertEquals(LeaderResearchSourceStatus.DEGRADED, results.first { it.sourceType == LeaderResearchSourceType.EXISTING_LEADER }.status)
         assertEquals(LeaderResearchSourceStatus.DEGRADED, results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.status)
+        assertFalse(results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.expectedLimitation)
         assertTrue(results.flatMap { it.candidates }.map { it.normalizedWallet }.containsAll(listOf(watchWallet, existingWallet, activityWallet)))
     }
 

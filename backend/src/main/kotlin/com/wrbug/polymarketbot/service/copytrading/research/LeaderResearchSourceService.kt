@@ -398,6 +398,9 @@ class LeaderResearchSourceService(
     }
 
     private fun markActivityDerivedDegraded(result: LeaderResearchSourceRunResult): LeaderResearchSourceRunResult {
+        val expectedLimitation = result.status == LeaderResearchSourceStatus.SUCCESS &&
+            result.errorClass == null &&
+            result.errorMessage == null
         saveSourceState(
             sourceType = LeaderResearchSourceType.ACTIVITY_DERIVED,
             status = LeaderResearchSourceStatus.DEGRADED,
@@ -411,7 +414,7 @@ class LeaderResearchSourceService(
         return result.copy(
             status = LeaderResearchSourceStatus.DEGRADED,
             limitation = GLOBAL_CAPTURE_DISABLED_LIMITATION,
-            expectedLimitation = true
+            expectedLimitation = expectedLimitation
         )
     }
 
