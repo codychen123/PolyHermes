@@ -9,11 +9,13 @@ import com.wrbug.polymarketbot.enums.LeaderResearchTriggerType
 import com.wrbug.polymarketbot.repository.LeaderActivityEventRepository
 import com.wrbug.polymarketbot.repository.LeaderResearchCandidateRepository
 import com.wrbug.polymarketbot.repository.LeaderResearchRunRepository
+import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 @Service
@@ -30,6 +32,9 @@ class LeaderResearchJobService(
 ) {
     private val logger = LoggerFactory.getLogger(LeaderResearchJobService::class.java)
     private val running = AtomicBoolean(false)
+    internal var runExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "leader-research-runner").apply { isDaemon = true }
+    }
 
     @Scheduled(fixedDelayString = "\${leader.research.fixed-delay-ms:900000}")
     fun scheduledRun() {
@@ -37,8 +42,37 @@ class LeaderResearchJobService(
         runOnce(dryRun = false, triggerType = LeaderResearchTriggerType.SCHEDULED)
     }
 
-    @Transactional
     fun runOnce(dryRun: Boolean, triggerType: LeaderResearchTriggerType = LeaderResearchTriggerType.MANUAL): LeaderResearchRun {
+        val start = startRunRecord(dryRun, triggerType)
+        if (!start.acquired) return start.run
+        return executeStartedRun(start.run)
+    }
+
+    fun startAsync(dryRun: Boolean, triggerType: LeaderResearchTriggerType = LeaderResearchTriggerType.MANUAL): LeaderResearchRun {
+        val start = startRunRecord(dryRun, triggerType)
+        if (!start.acquired) return start.run
+
+        return try {
+            runExecutor.submit {
+                logger.info("Leader research async run started: runId={}", start.run.id)
+                executeStartedRun(start.run)
+            }
+            logger.info("Leader research async run queued: runId={}, triggerType={}", start.run.id, triggerType)
+            start.run
+        } catch (e: RuntimeException) {
+            logger.error("Failed to queue leader research async run: runId={}", start.run.id, e)
+            failStartedRun(start.run, e).also { running.set(false) }
+        }
+    }
+
+    @PreDestroy
+    fun shutdown() {
+        runExecutor.shutdownNow()
+    }
+
+    private data class RunStart(val run: LeaderResearchRun, val acquired: Boolean)
+
+    private fun startRunRecord(dryRun: Boolean, triggerType: LeaderResearchTriggerType): RunStart {
         if (!running.compareAndSet(false, true)) {
             val now = System.currentTimeMillis()
             val skipped = runRepository.save(
@@ -59,28 +93,38 @@ class LeaderResearchJobService(
                 runId = skipped.id,
                 reason = "Skipped because another research run is in progress"
             )
-            return skipped
+            return RunStart(skipped, acquired = false)
         }
 
         val startedAt = System.currentTimeMillis()
-        var run = runRepository.save(
-            LeaderResearchRun(
-                status = LeaderResearchRunStatus.RUNNING,
-                triggerType = triggerType,
-                dryRun = dryRun,
-                startedAt = startedAt,
-                createdAt = startedAt,
-                updatedAt = startedAt
-            )
-        )
-        eventService.record(
-            type = LeaderResearchEventType.RUN_STARTED,
-            runId = run.id,
-            reason = "Leader research run started"
-        )
-
         return try {
-            val isPreview = dryRun || triggerType == LeaderResearchTriggerType.PREVIEW
+            val run = runRepository.save(
+                LeaderResearchRun(
+                    status = LeaderResearchRunStatus.RUNNING,
+                    triggerType = triggerType,
+                    dryRun = dryRun,
+                    startedAt = startedAt,
+                    createdAt = startedAt,
+                    updatedAt = startedAt
+                )
+            )
+            eventService.record(
+                type = LeaderResearchEventType.RUN_STARTED,
+                runId = run.id,
+                reason = "Leader research run started"
+            )
+            RunStart(run, acquired = true)
+        } catch (e: RuntimeException) {
+            running.set(false)
+            throw e
+        }
+    }
+
+    private fun executeStartedRun(startedRun: LeaderResearchRun): LeaderResearchRun {
+        var run = startedRun
+        val startedAt = startedRun.startedAt
+        return try {
+            val isPreview = run.dryRun || run.triggerType == LeaderResearchTriggerType.PREVIEW
             val sourceResults = if (isPreview) sourceService.previewCandidates() else sourceService.discoverCandidates(run.id)
             if (!isPreview) {
                 scoringService.scoreAll(run.id)
@@ -121,27 +165,31 @@ class LeaderResearchJobService(
             )
             run
         } catch (e: Exception) {
-            logger.error("Leader research run failed", e)
-            val now = System.currentTimeMillis()
-            runRepository.save(
-                run.copy(
-                    status = LeaderResearchRunStatus.FAILED,
-                    finishedAt = now,
-                    durationMs = now - startedAt,
-                    errorClass = e::class.java.simpleName,
-                    errorMessage = e.message,
-                    updatedAt = now
-                )
-            ).also {
-                eventService.record(
-                    type = LeaderResearchEventType.RUN_FAILED,
-                    runId = it.id,
-                    reason = e.message,
-                    payloadSummary = e::class.java.name
-                )
-            }
+            failStartedRun(run, e)
         } finally {
             running.set(false)
+        }
+    }
+
+    private fun failStartedRun(run: LeaderResearchRun, e: Exception): LeaderResearchRun {
+        logger.error("Leader research run failed", e)
+        val now = System.currentTimeMillis()
+        return runRepository.save(
+            run.copy(
+                status = LeaderResearchRunStatus.FAILED,
+                finishedAt = now,
+                durationMs = now - run.startedAt,
+                errorClass = e::class.java.simpleName,
+                errorMessage = e.message,
+                updatedAt = now
+            )
+        ).also {
+            eventService.record(
+                type = LeaderResearchEventType.RUN_FAILED,
+                runId = it.id,
+                reason = e.message,
+                payloadSummary = e::class.java.name
+            )
         }
     }
 }

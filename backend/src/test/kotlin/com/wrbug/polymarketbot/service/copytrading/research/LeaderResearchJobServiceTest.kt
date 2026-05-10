@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class LeaderResearchJobServiceTest {
     private val runRepository: LeaderResearchRunRepository = mock()
@@ -129,6 +131,25 @@ class LeaderResearchJobServiceTest {
         assertTrue(run.dryRun)
         Mockito.verify(sourceService).previewCandidates()
         Mockito.verifyNoInteractions(scoringService, stateMachine, paperTradingService)
+    }
+
+    @Test
+    fun `async run returns running record before background execution completes`() {
+        val service = service()
+        val executor = Executors.newSingleThreadExecutor()
+        service.runExecutor = executor
+        stubRunSaves()
+        Mockito.`when`(sourceService.discoverCandidates(1L)).thenAnswer {
+            Thread.sleep(100)
+            emptyList<LeaderResearchSourceRunResult>()
+        }
+
+        val run = service.startAsync(dryRun = false, triggerType = LeaderResearchTriggerType.MANUAL)
+
+        assertEquals(LeaderResearchRunStatus.RUNNING, run.status)
+        executor.shutdown()
+        assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS))
+        Mockito.verify(sourceService).discoverCandidates(run.id)
     }
 
     @Test

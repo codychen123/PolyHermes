@@ -3,6 +3,7 @@ package com.wrbug.polymarketbot.controller.copytrading.research
 import com.wrbug.polymarketbot.dto.LeaderResearchApprovalRequest
 import com.wrbug.polymarketbot.dto.LeaderResearchRunRequest
 import com.wrbug.polymarketbot.entity.LeaderResearchRun
+import com.wrbug.polymarketbot.enums.LeaderResearchTriggerType
 import com.wrbug.polymarketbot.enums.ErrorCode
 import com.wrbug.polymarketbot.service.copytrading.research.LeaderResearchApprovalConfirmRequiredException
 import com.wrbug.polymarketbot.service.copytrading.research.LeaderResearchApprovalService
@@ -29,9 +30,9 @@ class LeaderResearchControllerTest {
     )
 
     @Test
-    fun `run returns run dto`() {
+    fun `manual run queues async run and returns run dto`() {
         val run = LeaderResearchRun(id = 1L)
-        Mockito.`when`(jobService.runOnce(false, com.wrbug.polymarketbot.enums.LeaderResearchTriggerType.MANUAL)).thenReturn(run)
+        Mockito.`when`(jobService.startAsync(false, LeaderResearchTriggerType.MANUAL)).thenReturn(run)
         Mockito.`when`(mapper.runDto(run)).thenReturn(
             com.wrbug.polymarketbot.dto.LeaderResearchRunDto(
                 id = 1,
@@ -54,6 +55,38 @@ class LeaderResearchControllerTest {
 
         assertEquals(0, response.body!!.code)
         assertEquals(1, response.body!!.data!!.id)
+        Mockito.verify(jobService).startAsync(false, LeaderResearchTriggerType.MANUAL)
+        Mockito.verify(jobService, Mockito.never()).runOnce(false, LeaderResearchTriggerType.MANUAL)
+    }
+
+    @Test
+    fun `preview run stays synchronous`() {
+        val run = LeaderResearchRun(id = 2L, dryRun = true, triggerType = LeaderResearchTriggerType.PREVIEW)
+        Mockito.`when`(jobService.runOnce(true, LeaderResearchTriggerType.PREVIEW)).thenReturn(run)
+        Mockito.`when`(mapper.runDto(run)).thenReturn(
+            com.wrbug.polymarketbot.dto.LeaderResearchRunDto(
+                id = 2,
+                status = "SUCCESS",
+                triggerType = "PREVIEW",
+                dryRun = true,
+                startedAt = run.startedAt,
+                finishedAt = null,
+                durationMs = null,
+                sourceCountsJson = null,
+                candidateCountsJson = null,
+                partialFailure = false,
+                skippedReason = null,
+                errorClass = null,
+                errorMessage = null
+            )
+        )
+
+        val response = controller.run(LeaderResearchRunRequest(dryRun = true, triggerType = "PREVIEW"))
+
+        assertEquals(0, response.body!!.code)
+        assertEquals(2, response.body!!.data!!.id)
+        Mockito.verify(jobService).runOnce(true, LeaderResearchTriggerType.PREVIEW)
+        Mockito.verify(jobService, Mockito.never()).startAsync(true, LeaderResearchTriggerType.PREVIEW)
     }
 
     @Test

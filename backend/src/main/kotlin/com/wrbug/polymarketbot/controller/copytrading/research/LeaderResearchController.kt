@@ -51,7 +51,11 @@ class LeaderResearchController(
         return try {
             val trigger = runCatching { LeaderResearchTriggerType.valueOf(request.triggerType.uppercase()) }
                 .getOrDefault(LeaderResearchTriggerType.MANUAL)
-            val run = jobService.runOnce(request.dryRun, trigger)
+            val run = if (request.dryRun || trigger == LeaderResearchTriggerType.PREVIEW) {
+                jobService.runOnce(request.dryRun, trigger)
+            } else {
+                jobService.startAsync(request.dryRun, trigger)
+            }
             ResponseEntity.ok(ApiResponse.success(mapper.runDto(run)))
         } catch (e: Exception) {
             logger.error("Leader research run failed", e)

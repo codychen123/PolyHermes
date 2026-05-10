@@ -99,8 +99,8 @@ const LeaderResearch: React.FC = () => {
   const [approvalLoading, setApprovalLoading] = useState(false)
   const [approvalForm] = Form.useForm()
 
-  const loadAll = async () => {
-    setLoading(true)
+  const loadAll = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
     try {
       const [candidateResp, summaryResp, sourceResp, accountResp] = await Promise.all([
         apiService.leaderResearch.listCandidates({ page: 0, size: 50, state: stateFilter, query: query || undefined }),
@@ -125,13 +125,23 @@ const LeaderResearch: React.FC = () => {
     } catch (error: any) {
       message.error(error.message || t('leaderResearch.fetchFailed'))
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
   }
 
   useEffect(() => {
     loadAll()
   }, [stateFilter])
+
+  useEffect(() => {
+    const lastRunStatus = summary?.lastRun?.status || candidates.summary?.lastRun?.status
+    if (lastRunStatus !== 'RUNNING') return
+
+    const timer = window.setInterval(() => {
+      loadAll(false)
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [summary?.lastRun?.status, candidates.summary?.lastRun?.status])
 
   const runAgent = async () => {
     setRunning(true)
@@ -291,8 +301,8 @@ const LeaderResearch: React.FC = () => {
               <Paragraph type="secondary" style={{ marginBottom: 0 }}>{t('leaderResearch.subtitle')}</Paragraph>
             </div>
             <Space>
-              <Button icon={<ReloadOutlined />} onClick={loadAll}>{t('common.refresh')}</Button>
-              <Button type="primary" icon={<PlayCircleOutlined />} loading={running} onClick={runAgent}>
+              <Button icon={<ReloadOutlined />} onClick={() => loadAll()}>{t('common.refresh')}</Button>
+              <Button type="primary" icon={<PlayCircleOutlined />} loading={running || lastRun?.status === 'RUNNING'} onClick={runAgent}>
                 {t('leaderResearch.runNow')}
               </Button>
             </Space>
@@ -390,7 +400,7 @@ const LeaderResearch: React.FC = () => {
               placeholder={t('leaderResearch.searchPlaceholder')}
               value={query}
               onChange={event => setQuery(event.target.value)}
-              onSearch={loadAll}
+              onSearch={() => loadAll()}
             />
           </Space>
           <Table
