@@ -10,6 +10,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+COMPOSE_FILES=(-f docker-compose.yml)
 
 # 打印信息
 info() {
@@ -22,6 +23,40 @@ warn() {
 
 error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 从环境变量或 .env 文件读取配置值，避免 source .env 时被特殊字符影响
+get_config_value() {
+    local key="$1"
+    local value="${!key}"
+    
+    if [ -n "$value" ]; then
+        echo "$value"
+        return
+    fi
+    
+    if [ -f ".env" ]; then
+        grep "^${key}=" .env 2>/dev/null | cut -d'=' -f2- | sed 's/^["'\'']//;s/["'\'']$//' | tr -d '\r' || true
+    fi
+}
+
+# 根据数据库配置选择 compose 文件
+configure_compose_files() {
+    local db_url
+    db_url=$(get_config_value "DB_URL")
+    
+    COMPOSE_FILES=(-f docker-compose.yml)
+    
+    if [[ "$db_url" == *"host.docker.internal"* ]]; then
+        COMPOSE_FILES=(-f docker-compose.host-mysql.yml)
+        info "检测到 DB_URL 指向宿主机 MySQL，将使用 docker-compose.host-mysql.yml"
+    else
+        info "使用默认 docker-compose.yml（包含内置 MySQL 服务）"
+    fi
+}
+
+compose() {
+    docker-compose "${COMPOSE_FILES[@]}" "$@"
 }
 
 # 检查 Docker 环境
@@ -148,6 +183,7 @@ check_security_config() {
 deploy() {
     # 检查安全配置
     check_security_config
+    configure_compose_files
     
     # 检查是否使用 Docker Hub 镜像
     USE_DOCKER_HUB="${USE_DOCKER_HUB:-false}"
@@ -182,20 +218,20 @@ deploy() {
         export GIT_TAG=${DOCKER_VERSION}
         export GITHUB_REPO_URL=https://github.com/WrBug/PolyHermes
         
-        docker-compose build
+        compose build
     fi
     
     info "启动服务..."
-    docker-compose up -d
+    compose up -d
     
     info "等待服务启动..."
     sleep 5
     
     info "检查服务状态..."
-    docker-compose ps
+    compose ps
     
-    info "查看日志: docker-compose logs -f"
-    info "停止服务: docker-compose down"
+    info "查看日志: docker-compose ${COMPOSE_FILES[*]} logs -f"
+    info "停止服务: docker-compose ${COMPOSE_FILES[*]} down"
 }
 
 # 主函数
