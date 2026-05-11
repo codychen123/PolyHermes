@@ -420,6 +420,7 @@ The development documentation includes:
 - [Development Documentation](docs/en/DEVELOPMENT.md) - Development guide
 - [Copy Trading System Requirements](docs/zh/copy-trading-requirements.md) - Backend API documentation (Chinese only)
 - [Frontend Requirements](docs/zh/copy-trading-frontend-requirements.md) - Frontend feature documentation (Chinese only)
+- [Leader Research Agent](docs/zh/leader-research-agent.md) - Auto-discovery, paper trading, scoring, and disabled-trial approval guide (Chinese only)
 
 ### 🤝 Contributing
 
@@ -467,4 +468,3 @@ Thanks to all developers and users who have contributed to this project!
 ---
 
 **⭐ If this project helps you, please give it a Star!**
-

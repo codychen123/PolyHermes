@@ -421,6 +421,8 @@ cd frontend
 - [开发文档](docs/zh/DEVELOPMENT.md) - 开发指南
 - [跟单系统需求文档](docs/zh/copy-trading-requirements.md) - 后端 API 接口文档
 - [前端需求文档](docs/zh/copy-trading-frontend-requirements.md) - 前端功能文档
+- [跟单亏损诊断与风险安全带](docs/zh/copy-trading-risk-seatbelt.md) - PnL 诊断、安全带确认流程和运维排查命令
+- [Leader Research Agent](docs/zh/leader-research-agent.md) - 自动发现、纸跟、评分和禁用试跟审批说明
 - [动态更新文档](docs/zh/DYNAMIC_UPDATE.md) - 动态更新功能说明
 
 ### 🤝 贡献指南

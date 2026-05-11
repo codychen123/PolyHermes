@@ -328,6 +328,36 @@ class CopyTradingService(
             Result.failure(e)
         }
     }
+
+    @Transactional
+    fun applyConservativeConfig(request: ApplyConservativeConfigRequest): Result<CopyTradingDto> {
+        return try {
+            val copyTrading = copyTradingRepository.findById(request.copyTradingId).orElse(null)
+                ?: return Result.failure(IllegalArgumentException("跟单配置不存在"))
+            val updated = CopyTradingSafetyConfigService.applyConservativeConfig(copyTrading, request)
+            val saved = copyTradingRepository.save(updated)
+
+            kotlinx.coroutines.runBlocking {
+                try {
+                    monitorService.updateLeaderMonitoring(saved.leaderId)
+                    monitorService.updateAccountMonitoring(saved.accountId)
+                } catch (e: Exception) {
+                    logger.error("更新监听失败", e)
+                }
+            }
+
+            val account = accountRepository.findById(saved.accountId).orElse(null)
+            val leader = leaderRepository.findById(saved.leaderId).orElse(null)
+            if (account == null || leader == null) {
+                return Result.failure(IllegalStateException("跟单配置数据不完整"))
+            }
+
+            Result.success(toDto(saved, account, leader))
+        } catch (e: Exception) {
+            logger.error("应用保守配置失败", e)
+            Result.failure(e)
+        }
+    }
     
     /**
      * 更新跟单状态（兼容旧接口）

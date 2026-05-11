@@ -6,7 +6,11 @@ import com.wrbug.polymarketbot.api.TradeResponse
 import com.wrbug.polymarketbot.dto.ActivityTradeMessage
 import com.wrbug.polymarketbot.dto.ActivityTradePayload
 import com.wrbug.polymarketbot.entity.Leader
+import com.wrbug.polymarketbot.enums.LeaderResearchSourceStatus
+import com.wrbug.polymarketbot.enums.LeaderResearchSourceType
 import com.wrbug.polymarketbot.repository.LeaderRepository
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderActivityIngestionService
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderResearchSourceHealthService
 import com.wrbug.polymarketbot.service.copytrading.statistics.CopyOrderTrackingService
 import com.wrbug.polymarketbot.util.fromJson
 import com.wrbug.polymarketbot.constants.PolymarketConstants
@@ -14,6 +18,8 @@ import com.wrbug.polymarketbot.websocket.PolymarketWebSocketClient
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.util.concurrent.ConcurrentHashMap
@@ -27,7 +33,11 @@ import java.util.concurrent.TimeUnit
 @Service
 class PolymarketActivityWsService(
     private val copyOrderTrackingService: CopyOrderTrackingService,
-    private val leaderRepository: LeaderRepository
+    private val leaderRepository: LeaderRepository,
+    private val researchIngestionProvider: ObjectProvider<LeaderActivityIngestionService>,
+    private val researchSourceHealthProvider: ObjectProvider<LeaderResearchSourceHealthService>,
+    @Value("\${leader.research.global-capture.enabled:false}") private val researchGlobalCaptureEnabled: Boolean,
+    @Value("\${leader.research.global-capture.max-writes-per-minute:120}") private val researchGlobalCaptureMaxWritesPerMinute: Long
 ) {
 
     private val logger = LoggerFactory.getLogger(PolymarketActivityWsService::class.java)
@@ -65,6 +75,10 @@ class PolymarketActivityWsService(
     private var addressMatchMessages = 0L
     private var jsonParseMessages = 0L
     private var duplicateTxHashMessages = 0L
+    private var researchCaptureWindowMinute = 0L
+    private var researchCaptureWritesThisMinute = 0L
+    private var researchCaptureLastHealthStatus: LeaderResearchSourceStatus? = null
+    private var researchCaptureLastHealthWriteAt = 0L
 
     /**
      * 启动监听
@@ -314,6 +328,8 @@ class PolymarketActivityWsService(
                 return
             }
 
+            maybeCaptureResearchActivity(message)
+
             // 快速预检查：检查是否包含监听地址
             // 绝大部分消息会在这一步被过滤掉，避免不必要的 JSON 解析
             if (!containsMonitoredAddress(message)) {
@@ -388,6 +404,100 @@ class PolymarketActivityWsService(
         } catch (e: Exception) {
             logger.error("处理 Activity WebSocket 消息失败: ${e.message}", e)
         }
+    }
+
+    private fun maybeCaptureResearchActivity(message: String) {
+        if (!researchGlobalCaptureEnabled) {
+            recordResearchCaptureHealth(
+                status = LeaderResearchSourceStatus.DISABLED,
+                disabledReason = "Global activity capture is disabled"
+            )
+            return
+        }
+        val currentMinute = System.currentTimeMillis() / 60_000
+        if (researchCaptureWindowMinute != currentMinute) {
+            researchCaptureWindowMinute = currentMinute
+            researchCaptureWritesThisMinute = 0
+        }
+        if (researchCaptureWritesThisMinute >= researchGlobalCaptureMaxWritesPerMinute) {
+            recordResearchCaptureHealth(
+                status = LeaderResearchSourceStatus.DEGRADED,
+                errorClass = "WriteCapReached",
+                errorMessage = "write capped at $researchGlobalCaptureMaxWritesPerMinute events per minute"
+            )
+            return
+        }
+        val tradeMessage = message.fromJson<ActivityTradeMessage>() ?: run {
+            recordResearchCaptureHealth(
+                status = LeaderResearchSourceStatus.FAILURE,
+                errorClass = "JsonParseFailure",
+                errorMessage = "failed to parse activity websocket message"
+            )
+            return
+        }
+        if (tradeMessage.topic != "activity" || (tradeMessage.type != "trades" && tradeMessage.type != "orders_matched")) {
+            return
+        }
+        val ingestionService = researchIngestionProvider.getIfAvailable() ?: return
+        try {
+            val event = ingestionService.ingestWebSocketTrade(tradeMessage)
+            researchCaptureWritesThisMinute++
+            recordResearchCaptureHealth(
+                status = LeaderResearchSourceStatus.SUCCESS,
+                candidateCount = researchCaptureWritesThisMinute.toInt(),
+                lastCursor = "${event.eventTime}:${event.stableEventKey}"
+            )
+        } catch (e: Exception) {
+            logger.warn("Research global activity capture failed: {}", e.message)
+            recordResearchCaptureHealth(
+                status = LeaderResearchSourceStatus.FAILURE,
+                errorClass = e::class.java.simpleName,
+                errorMessage = e.message
+            )
+        }
+    }
+
+    private fun recordResearchCaptureHealth(
+        status: LeaderResearchSourceStatus,
+        candidateCount: Int = 0,
+        errorClass: String? = null,
+        errorMessage: String? = null,
+        disabledReason: String? = null,
+        lastCursor: String? = null
+    ) {
+        if (shouldThrottleResearchCaptureHealth(status)) {
+            return
+        }
+        try {
+            researchSourceHealthProvider.getIfAvailable()?.record(
+                sourceType = LeaderResearchSourceType.GLOBAL_ACTIVITY_CAPTURE,
+                status = status,
+                candidateCount = candidateCount,
+                errorClass = errorClass,
+                errorMessage = errorMessage,
+                disabledReason = disabledReason,
+                lastCursor = lastCursor
+            )
+        } catch (e: Exception) {
+            logger.warn("记录研究全局 activity 来源健康失败: status={}, error={}", status, e.message)
+        }
+    }
+
+    private fun shouldThrottleResearchCaptureHealth(status: LeaderResearchSourceStatus): Boolean {
+        val now = System.currentTimeMillis()
+        val throttleWindow = when (status) {
+            LeaderResearchSourceStatus.DISABLED -> RESEARCH_CAPTURE_DISABLED_HEALTH_THROTTLE_MS
+            LeaderResearchSourceStatus.SUCCESS -> 0L
+            else -> RESEARCH_CAPTURE_HEALTH_THROTTLE_MS
+        }
+        val throttle = throttleWindow > 0 &&
+            status == researchCaptureLastHealthStatus &&
+            now - researchCaptureLastHealthWriteAt < throttleWindow
+        if (!throttle) {
+            researchCaptureLastHealthStatus = status
+            researchCaptureLastHealthWriteAt = now
+        }
+        return throttle
     }
 
     /**
@@ -574,5 +684,9 @@ class PolymarketActivityWsService(
         stop()
         scope.cancel()
     }
-}
 
+    companion object {
+        private const val RESEARCH_CAPTURE_HEALTH_THROTTLE_MS = 60_000L
+        private const val RESEARCH_CAPTURE_DISABLED_HEALTH_THROTTLE_MS = 60L * 60L * 1000L
+    }
+}

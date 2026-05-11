@@ -85,6 +85,24 @@ data class CopyTradingUpdateRequest(
 )
 
 /**
+ * 应用保守风控配置请求。
+ *
+ * 只暴露安全带允许修改的白名单字段，避免误改 leader、启用状态、金额模式等真实交易行为。
+ */
+data class ApplyConservativeConfigRequest(
+    val copyTradingId: Long,
+    val confirm: Boolean = false,
+    val maxDailyOrders: Int? = null,
+    val maxDailyLoss: String? = null,
+    val minPrice: String? = null,
+    val maxPrice: String? = null,
+    val maxPositionValue: String? = null,
+    val minOrderDepth: String? = null,
+    val maxSpread: String? = null,
+    val priceTolerance: String? = null
+)
+
+/**
  * 跟单列表请求
  */
 data class CopyTradingListRequest(
@@ -189,4 +207,3 @@ data class AccountTemplatesResponse(
     val list: List<AccountTemplateDto>,
     val total: Long
 )
-

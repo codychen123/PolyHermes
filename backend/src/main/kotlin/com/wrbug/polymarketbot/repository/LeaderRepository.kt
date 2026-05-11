@@ -29,5 +29,6 @@ interface LeaderRepository : JpaRepository<Leader, Long> {
      * 查找所有 Leader，按创建时间排序
      */
     fun findAllByOrderByCreatedAtAsc(): List<Leader>
-}
 
+    fun findByIdIn(ids: Collection<Long>): List<Leader>
+}

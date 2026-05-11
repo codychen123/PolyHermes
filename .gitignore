@@ -95,6 +95,7 @@ coverage/
 # Test
 test-results/
 *.test.log
+.playwright-cli/
 
 # Python
 __pycache__/
@@ -114,3 +115,4 @@ builder-relayer-client/
 landing-page/
 clob-client-v2/
 settings.local.json
+.gstack/
