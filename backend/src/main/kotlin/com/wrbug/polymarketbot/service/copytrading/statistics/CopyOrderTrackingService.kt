@@ -4,6 +4,8 @@ import com.wrbug.polymarketbot.api.NewOrderRequest
 import com.wrbug.polymarketbot.api.PolymarketClobApi
 import com.wrbug.polymarketbot.api.TradeResponse
 import com.wrbug.polymarketbot.entity.*
+import com.wrbug.polymarketbot.enums.AutopilotActionType
+import com.wrbug.polymarketbot.enums.CopyTradingManagementMode
 import com.wrbug.polymarketbot.repository.*
 import com.wrbug.polymarketbot.util.RetrofitFactory
 import com.wrbug.polymarketbot.util.*
@@ -21,6 +23,9 @@ import com.wrbug.polymarketbot.service.copytrading.orders.OrderSigningService
 import com.wrbug.polymarketbot.service.common.BlockchainService
 import com.wrbug.polymarketbot.service.common.MarketService
 import com.wrbug.polymarketbot.service.common.PolymarketClobService
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderAutopilotDecisionRequest
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderAutopilotDecisionService
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderAutopilotFeedbackService
 import com.wrbug.polymarketbot.service.system.TelegramNotificationService
 import com.wrbug.polymarketbot.util.CryptoUtils
 import org.springframework.context.ApplicationContext
@@ -52,6 +57,8 @@ open class CopyOrderTrackingService(
     private val retrofitFactory: RetrofitFactory,
     private val cryptoUtils: CryptoUtils,
     private val marketService: MarketService,  // 市场信息服务
+    private val autopilotService: LeaderAutopilotDecisionService,
+    private val autopilotFeedbackService: LeaderAutopilotFeedbackService,
     private val telegramNotificationService: TelegramNotificationService? = null  // 可选，避免循环依赖
 ) : ApplicationContextAware {
 
@@ -242,6 +249,7 @@ open class CopyOrderTrackingService(
 
             // 2. 为每个跟单关系创建买入订单跟踪
             for (copyTrading in copyTradings) {
+                var autopilotReservationId: Long? = null
                 try {
                     // 获取账户
                     val account = accountRepository.findById(copyTrading.accountId).orElse(null)
@@ -337,6 +345,7 @@ open class CopyOrderTrackingService(
                     val orderbook = filterResult.orderbook  // 获取订单簿（如果需要）
                     if (!filterResult.isPassed) {
                         logger.warn("过滤条件检查失败，跳过创建订单: copyTradingId=${copyTrading.id}, reason=${filterResult.reason}")
+                        autopilotFeedbackService.recordFiltered(copyTrading, filterResult.reason)
 
                         // 记录被过滤的订单并发送通知（异步，不阻塞）
                         notificationScope.launch {
@@ -564,6 +573,34 @@ open class CopyOrderTrackingService(
 
                     logger.info("准备创建买入订单: copyTradingId=${copyTrading.id}, tradeId=${trade.id}, leaderPrice=${trade.price}, tolerance=${copyTrading.priceTolerance}, calculatedPrice=$buyPrice, quantity=$finalBuyQuantity")
 
+                    if (copyTrading.managementMode == CopyTradingManagementMode.AUTOPILOT) {
+                        val finalOrderAmount = finalBuyQuantity.multi(buyPrice)
+                        val decision = autopilotService.decide(
+                            LeaderAutopilotDecisionRequest(
+                                actionType = AutopilotActionType.BUY,
+                                accountId = copyTrading.accountId,
+                                candidateId = copyTrading.autopilotCandidateId,
+                                leaderId = copyTrading.leaderId,
+                                copyTrading = copyTrading,
+                                requestedAmount = finalOrderAmount,
+                                leaderTradeId = trade.id,
+                                inputSnapshot = mapOf(
+                                    "source" to source,
+                                    "marketId" to effectiveMarketId,
+                                    "tokenId" to tokenId,
+                                    "leaderPrice" to trade.price,
+                                    "buyPrice" to buyPrice.toPlainString(),
+                                    "quantity" to finalBuyQuantity.toPlainString()
+                                )
+                            )
+                        )
+                        if (!decision.allowed) {
+                            logger.warn("Autopilot 拒绝 BUY，跳过真实下单: copyTradingId=${copyTrading.id}, tradeId=${trade.id}, reason=${decision.reasonCode}")
+                            continue
+                        }
+                        autopilotReservationId = decision.reservation?.id
+                    }
+
                     // Neg Risk 市场需用 Neg Risk Exchange 签约，否则服务端返回 invalid signature
                     val negRisk = marketService.getNegRiskByConditionId(effectiveMarketId) == true
                     val exchangeContract = orderSigningService.getExchangeContract(negRisk)
@@ -593,6 +630,7 @@ open class CopyOrderTrackingService(
                         // 提取错误信息（只保留 code 和 errorBody）
                         val exception = createOrderResult.exceptionOrNull()
                         logger.error("创建买入订单失败: copyTradingId=${copyTrading.id}, tradeId=${trade.id}, leaderPrice=${trade.price}, myPrice=$buyPrice, error=${exception?.message}")
+                        autopilotFeedbackService.recordOrderRejected(copyTrading, exception?.message ?: "order-create-failed")
 
                         // 发送订单失败通知（异步，不阻塞，仅在 pushFailedOrders 为 true 时发送）
                         if (copyTrading.pushFailedOrders) {
@@ -629,14 +667,20 @@ open class CopyOrderTrackingService(
                             }
                         }
 
+                        autopilotService.releaseReservation(autopilotReservationId, "order-create-failed")
                         continue
                     }
 
-                    val realOrderId = createOrderResult.getOrNull() ?: continue
+                    val realOrderId = createOrderResult.getOrNull()
+                    if (realOrderId == null) {
+                        autopilotService.releaseReservation(autopilotReservationId, "missing-order-id")
+                        continue
+                    }
 
                     // 验证 orderId 格式（必须以 0x 开头的 16 进制）
                     if (!isValidOrderId(realOrderId)) {
                         logger.warn("买入订单ID格式无效，跳过保存: orderId=$realOrderId")
+                        autopilotService.releaseReservation(autopilotReservationId, "invalid-order-id")
                         continue
                     }
 
@@ -661,9 +705,12 @@ open class CopyOrderTrackingService(
                     )
 
                     copyOrderTrackingRepository.save(tracking)
+                    autopilotService.finalizeReservation(autopilotReservationId, realOrderId)
+                    autopilotFeedbackService.recordBuySubmitted(copyTrading, finalBuyQuantity.multi(buyPrice), realOrderId)
 
                     logger.info("买入订单已保存，等待轮询任务获取实际数据后发送通知: orderId=$realOrderId, copyTradingId=${copyTrading.id}")
                 } catch (e: Exception) {
+                    autopilotService.releaseReservation(autopilotReservationId, "buy-exception")
                     logger.error("处理买入交易失败: copyTradingId=${copyTrading.id}, tradeId=${trade.id}", e)
                     // 继续处理下一个跟单关系
                 }
@@ -683,8 +730,9 @@ open class CopyOrderTrackingService(
     @Transactional
     suspend fun processSellTrade(leaderId: Long, trade: TradeResponse): Result<Unit> {
         return try {
-            // 1. 查找所有启用且支持该Leader的跟单关系
-            val copyTradings = copyTradingRepository.findByLeaderIdAndEnabledTrue(leaderId)
+            // Autopilot 暂停或 kill switch 时仍允许 reduce-only 卖出已有仓位，因此这里不能只查 enabled=true。
+            val copyTradings = copyTradingRepository.findByLeaderId(leaderId)
+                .filter { it.enabled || it.managementMode == CopyTradingManagementMode.AUTOPILOT }
 
             if (copyTradings.isEmpty()) {
                 return Result.success(Unit)
@@ -697,7 +745,9 @@ open class CopyOrderTrackingService(
                     if (!copyTrading.supportSell) {
                         continue
                     }
-
+                    if (!copyTrading.enabled && copyTrading.managementMode != CopyTradingManagementMode.AUTOPILOT) {
+                        continue
+                    }
                     // 执行卖出匹配
                     matchSellOrder(copyTrading, trade)
                 } catch (e: Exception) {
@@ -991,6 +1041,32 @@ open class CopyOrderTrackingService(
             return
         }
 
+        if (copyTrading.managementMode == CopyTradingManagementMode.AUTOPILOT) {
+            val decision = autopilotService.decide(
+                LeaderAutopilotDecisionRequest(
+                    actionType = AutopilotActionType.SELL,
+                    accountId = copyTrading.accountId,
+                    candidateId = copyTrading.autopilotCandidateId,
+                    leaderId = copyTrading.leaderId,
+                    copyTrading = copyTrading,
+                    requestedAmount = totalMatched.multi(sellPrice),
+                    leaderTradeId = leaderSellTrade.id,
+                    reduceOnly = true,
+                    inputSnapshot = mapOf(
+                        "source" to "matchSellOrder",
+                        "marketId" to leaderSellTrade.market,
+                        "tokenId" to tokenId,
+                        "sellPrice" to sellPrice.toPlainString(),
+                        "totalMatched" to totalMatched.toPlainString()
+                    )
+                )
+            )
+            if (!decision.allowed) {
+                logger.warn("Autopilot 拒绝 reduce-only SELL 下单: copyTradingId=${copyTrading.id}, tradeId=${leaderSellTrade.id}, reason=${decision.reasonCode}")
+                return
+            }
+        }
+
         // 7. 解密 API 凭证
         val apiSecret = try {
             decryptApiSecret(account)
@@ -1124,6 +1200,11 @@ open class CopyOrderTrackingService(
         )
 
         val savedRecord = sellMatchRecordRepository.save(matchRecord)
+        autopilotFeedbackService.recordRealizedPnl(
+            copyTrading = copyTrading,
+            realizedPnlDelta = totalRealizedPnl,
+            reason = "sell-match:${leaderSellTrade.id}"
+        )
 
         // 16. 保存匹配明细（使用实际成交价）
         for (detail in updatedMatchDetails) {
@@ -1369,19 +1450,22 @@ open class CopyOrderTrackingService(
         copyTrading: CopyTrading
     ): Pair<Boolean, String> {
         // 1. 检查每日订单数限制
-        val todayStart = System.currentTimeMillis() - (System.currentTimeMillis() % 86400000)  // 今天0点的时间戳
-        val todayBuyOrders = copyOrderTrackingRepository.findByCopyTradingId(copyTrading.id!!)
-            .filter { it.createdAt >= todayStart }
+        val todayStart = java.time.ZonedDateTime
+            .ofInstant(java.time.Instant.ofEpochMilli(System.currentTimeMillis()), java.time.ZoneOffset.UTC)
+            .toLocalDate()
+            .atStartOfDay(java.time.ZoneOffset.UTC)
+            .toInstant()
+            .toEpochMilli()
+        val todayBuyOrderCount = copyOrderTrackingRepository
+            .countByCopyTradingIdAndCreatedAtGreaterThanEqual(copyTrading.id!!, todayStart)
 
-        if (todayBuyOrders.size >= copyTrading.maxDailyOrders) {
-            return Pair(false, "今日订单数已达上限: ${todayBuyOrders.size}/${copyTrading.maxDailyOrders}")
+        if (todayBuyOrderCount >= copyTrading.maxDailyOrders.toLong()) {
+            return Pair(false, "今日订单数已达上限: ${todayBuyOrderCount}/${copyTrading.maxDailyOrders}")
         }
 
         // 2. 检查每日亏损限制（需要计算今日已实现盈亏）
-        val todaySellRecords = sellMatchRecordRepository.findByCopyTradingId(copyTrading.id)
-            .filter { it.createdAt >= todayStart }
-
-        val todayRealizedPnl = todaySellRecords.sumOf { it.totalRealizedPnl.toSafeBigDecimal() }
+        val todayRealizedPnl = sellMatchRecordRepository
+            .sumRealizedPnlByCopyTradingIdAndCreatedAtGreaterThanEqual(copyTrading.id, todayStart)
         if (todayRealizedPnl.lt(BigDecimal.ZERO)) {
             val todayLoss = todayRealizedPnl.abs()
             if (todayLoss.gte(copyTrading.maxDailyLoss)) {
@@ -1629,4 +1713,3 @@ open class CopyOrderTrackingService(
         return "YES"  // 默认返回第一个 outcome
     }
 }
-

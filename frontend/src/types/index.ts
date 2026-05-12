@@ -296,6 +296,11 @@ export interface CopyTrading {
   configName?: string  // 配置名（可选，但提供时必须非空）
   pushFailedOrders: boolean  // 推送失败订单（默认关闭）
   maxMarketEndDate?: number  // 市场截止时间限制（毫秒时间戳），仅跟单截止时间小于此时间的订单，NULL表示不启用
+  managementMode?: 'MANUAL' | 'AUTOPILOT' | string
+  autopilotPolicyId?: number
+  autopilotCandidateId?: number
+  autopilotPausedReason?: string
+  autopilotLastDecisionAt?: number
   createdAt: number
   updatedAt: number
 }
@@ -615,11 +620,121 @@ export interface LeaderResearchApprovalRequest {
   candidateId: number
   accountId: number
   confirm?: boolean
+  autopilotEnabled?: boolean
+  maxBudget?: string
+  singleLeaderMaxAmount?: string
+  maxDailyLoss?: string
+  maxDailyOrders?: number
+  maxPositionValue?: string
+  minPrice?: string
+  maxPrice?: string
 }
 
 export interface LeaderResearchApprovalResponse {
   copyTrading: CopyTrading
   warning: string
+  autopilotDecision?: string
+  autopilotReason?: string
+}
+
+export interface LeaderAutopilotPolicy {
+  id?: number
+  accountId: number
+  state: 'OFF' | 'ON' | 'PAUSED' | string
+  globalKillSwitch: boolean
+  maxBudget: string
+  singleLeaderMaxAmount: string
+  maxDailyLoss: string
+  maxDailyOrders: number
+  maxPositionValue: string
+  minPrice?: string
+  maxPrice?: string
+  pauseReason?: string
+  lastDecisionAt?: number
+  createdAt?: number
+  updatedAt?: number
+}
+
+export interface LeaderAutopilotDecisionEvent {
+  id: number
+  actionType: string
+  decision: string
+  reasonCode: string
+  reason?: string
+  accountId?: number
+  candidateId?: number
+  leaderId?: number
+  copyTradingId?: number
+  reservationId?: number
+  createdAt: number
+}
+
+export interface LeaderAutopilotStatus {
+  policy: LeaderAutopilotPolicy
+  managedConfigCount: number
+  enabledManagedConfigCount: number
+  recentEvents: LeaderAutopilotDecisionEvent[]
+}
+
+export interface LeaderResearchEvidenceMetric {
+  label: string
+  value: string
+  tone?: 'good' | 'warning' | 'danger' | 'neutral' | string
+}
+
+export interface LeaderResearchSuggestedConfig {
+  fixedAmount?: string
+  maxDailyLoss?: string
+  maxDailyOrders?: number
+  minPrice?: string
+  maxPrice?: string
+  maxPositionValue?: string
+}
+
+export interface LeaderResearchShortlistCard {
+  candidate: LeaderResearchCandidate
+  group: 'readyToTrial' | 'promisingPaper' | 'newCandidates' | 'blockedOrCooling' | string
+  priorityRank: number
+  recommendationReason: string
+  riskReason?: string
+  evidence: LeaderResearchEvidenceMetric[]
+  cta: string
+  canCreateDisabledTrial: boolean
+  canAutopilotTrial: boolean
+  suggestedConfig: LeaderResearchSuggestedConfig
+}
+
+export interface LeaderResearchShortlistResponse {
+  autopilot?: LeaderAutopilotPolicy
+  readyToTrial: LeaderResearchShortlistCard[]
+  promisingPaper: LeaderResearchShortlistCard[]
+  newCandidates: LeaderResearchShortlistCard[]
+  blockedOrCooling: LeaderResearchShortlistCard[]
+  emptyReasons: string[]
+  generatedAt: number
+}
+
+export interface LeaderResearchWatchlistResponse {
+  wallets: string[]
+  updatedAt?: number
+}
+
+export interface LeaderResearchWatchlistPreviewRequest {
+  rawWallets: string
+}
+
+export interface LeaderResearchWatchlistSaveRequest {
+  rawWallets: string
+  confirm?: boolean
+}
+
+export interface LeaderResearchWatchlistPreviewResponse {
+  valid: string[]
+  invalid: string[]
+  duplicate: string[]
+  existingCandidates: string[]
+  lockedCandidates: string[]
+  retiredCandidates: string[]
 }
 
 /**
@@ -660,6 +775,9 @@ export interface CopyTradingCreateRequest {
   pushFailedOrders?: boolean  // 推送失败订单（可选）
   pushFilteredOrders?: boolean  // 推送已过滤订单（可选）
   maxMarketEndDate?: number  // 市场截止时间限制（毫秒时间戳），仅跟单截止时间小于此时间的订单，NULL表示不启用
+  managementMode?: 'MANUAL' | 'AUTOPILOT' | string
+  autopilotPolicyId?: number
+  autopilotCandidateId?: number
 }
 
 /**
@@ -698,6 +816,9 @@ export interface CopyTradingUpdateRequest {
   pushFailedOrders?: boolean  // 推送失败订单（可选）
   pushFilteredOrders?: boolean  // 推送已过滤订单（可选）
   maxMarketEndDate?: number  // 市场截止时间限制（毫秒时间戳），仅跟单截止时间小于此时间的订单，NULL表示不启用
+  managementMode?: 'MANUAL' | 'AUTOPILOT' | string
+  autopilotPolicyId?: number
+  autopilotCandidateId?: number
 }
 
 /**

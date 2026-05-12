@@ -32,6 +32,8 @@ interface AccountRepository : JpaRepository<Account, Long> {
      * 查找所有账户，按创建时间排序
      */
     fun findAllByOrderByCreatedAtAsc(): List<Account>
+
+    fun findAllByUserIdOrderByCreatedAtAsc(userId: Long): List<Account>
     
     /**
      * 检查钱包地址是否存在

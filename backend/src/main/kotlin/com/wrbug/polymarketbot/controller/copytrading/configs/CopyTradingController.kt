@@ -4,6 +4,7 @@ import com.wrbug.polymarketbot.dto.*
 import com.wrbug.polymarketbot.enums.ErrorCode
 import com.wrbug.polymarketbot.service.copytrading.configs.CopyTradingService
 import com.wrbug.polymarketbot.service.copytrading.configs.FilteredOrderService
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderAutopilotDecisionDeniedException
 import org.slf4j.LoggerFactory
 import org.springframework.context.MessageSource
 import org.springframework.http.ResponseEntity
@@ -51,6 +52,8 @@ class CopyTradingController(
                     logger.error("创建跟单失败: ${e.message}", e)
                     when (e) {
                         is IllegalArgumentException -> ResponseEntity.ok(ApiResponse.error(ErrorCode.PARAM_ERROR, e.message, messageSource))
+                        is IllegalStateException -> ResponseEntity.ok(ApiResponse.error(ErrorCode.BUSINESS_ERROR, e.message, messageSource))
+                        is LeaderAutopilotDecisionDeniedException -> ResponseEntity.ok(ApiResponse.error(ErrorCode.LEADER_RESEARCH_REAL_MONEY_FORBIDDEN, e.message, messageSource))
                         else -> ResponseEntity.ok(ApiResponse.error(ErrorCode.SERVER_COPY_TRADING_CREATE_FAILED, e.message, messageSource))
                     }
                 }
@@ -103,6 +106,7 @@ class CopyTradingController(
                     when (e) {
                         is IllegalArgumentException -> ResponseEntity.ok(ApiResponse.error(ErrorCode.PARAM_ERROR, e.message, messageSource))
                         is IllegalStateException -> ResponseEntity.ok(ApiResponse.error(ErrorCode.BUSINESS_ERROR, e.message, messageSource))
+                        is LeaderAutopilotDecisionDeniedException -> ResponseEntity.ok(ApiResponse.error(ErrorCode.LEADER_RESEARCH_REAL_MONEY_FORBIDDEN, e.message, messageSource))
                         else -> ResponseEntity.ok(ApiResponse.error(ErrorCode.SERVER_COPY_TRADING_UPDATE_FAILED, e.message, messageSource))
                     }
                 }

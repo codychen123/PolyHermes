@@ -43,7 +43,10 @@ data class CopyTradingCreateRequest(
     val configName: String? = null,  // 配置名（可选）
     val pushFailedOrders: Boolean? = null,  // 推送失败订单（可选）
     val pushFilteredOrders: Boolean? = null,  // 推送已过滤订单（可选）
-    val maxMarketEndDate: Long? = null  // 市场截止时间限制（毫秒时间戳），仅跟单截止时间小于此时间的订单，NULL表示不启用
+    val maxMarketEndDate: Long? = null,  // 市场截止时间限制（毫秒时间戳），仅跟单截止时间小于此时间的订单，NULL表示不启用
+    val managementMode: String? = null,
+    val autopilotPolicyId: Long? = null,
+    val autopilotCandidateId: Long? = null
 )
 
 /**
@@ -81,7 +84,10 @@ data class CopyTradingUpdateRequest(
     val configName: String? = null,  // 配置名（可选，但提供时必须非空）
     val pushFailedOrders: Boolean? = null,  // 推送失败订单（可选）
     val pushFilteredOrders: Boolean? = null,  // 推送已过滤订单（可选）
-    val maxMarketEndDate: Long? = null  // 市场截止时间限制（毫秒时间戳），仅跟单截止时间小于此时间的订单，NULL表示不启用
+    val maxMarketEndDate: Long? = null,  // 市场截止时间限制（毫秒时间戳），仅跟单截止时间小于此时间的订单，NULL表示不启用
+    val managementMode: String? = null,
+    val autopilotPolicyId: Long? = null,
+    val autopilotCandidateId: Long? = null
 )
 
 /**
@@ -175,6 +181,11 @@ data class CopyTradingDto(
     val pushFailedOrders: Boolean = false,  // 推送失败订单（默认关闭）
     val pushFilteredOrders: Boolean = false,  // 推送已过滤订单（默认关闭）
     val maxMarketEndDate: Long? = null,  // 市场截止时间限制（毫秒时间戳），仅跟单截止时间小于此时间的订单，NULL表示不启用
+    val managementMode: String = "MANUAL",
+    val autopilotPolicyId: Long? = null,
+    val autopilotCandidateId: Long? = null,
+    val autopilotPausedReason: String? = null,
+    val autopilotLastDecisionAt: Long? = null,
     val createdAt: Long,
     val updatedAt: Long
 )

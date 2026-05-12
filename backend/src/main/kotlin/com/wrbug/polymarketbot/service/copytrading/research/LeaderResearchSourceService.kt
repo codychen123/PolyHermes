@@ -8,6 +8,7 @@ import com.wrbug.polymarketbot.enums.LeaderResearchSourceStatus
 import com.wrbug.polymarketbot.enums.LeaderResearchSourceType
 import com.wrbug.polymarketbot.enums.LeaderResearchState
 import com.wrbug.polymarketbot.repository.LeaderActivityEventRepository
+import com.wrbug.polymarketbot.repository.CopyTradingRepository
 import com.wrbug.polymarketbot.repository.LeaderPoolRepository
 import com.wrbug.polymarketbot.repository.LeaderRepository
 import com.wrbug.polymarketbot.repository.LeaderResearchCandidateRepository
@@ -16,6 +17,7 @@ import com.wrbug.polymarketbot.util.RetrofitFactory
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -65,6 +67,7 @@ private data class BackfillResult(
 @Service
 class LeaderResearchSourceService(
     private val candidateRepository: LeaderResearchCandidateRepository,
+    private val copyTradingRepository: CopyTradingRepository,
     private val leaderRepository: LeaderRepository,
     private val leaderPoolRepository: LeaderPoolRepository,
     private val activityEventRepository: LeaderActivityEventRepository,
@@ -73,6 +76,7 @@ class LeaderResearchSourceService(
     private val retrofitFactory: RetrofitFactory,
     private val eventService: LeaderResearchEventService,
     private val ingestionService: LeaderActivityIngestionService,
+    private val publicLeaderboardClient: LeaderPublicLeaderboardDiscoveryClient,
     @Value("\${leader.research.data-api-backfill.limit:200}") private val backfillLimit: Int,
     @Value("\${leader.research.global-capture.enabled:false}") private val globalCaptureEnabled: Boolean
 ) {
@@ -88,7 +92,7 @@ class LeaderResearchSourceService(
         if (!globalCaptureEnabled) {
             results += markGlobalActivityCaptureDisabled(runId)
         }
-        results += markPublicLeaderboardDisabled(runId)
+        results += captureSource(LeaderResearchSourceType.PUBLIC_LEADERBOARD, runId) { discoverPublicLeaderboard(runId) }
         return results
     }
 
@@ -122,13 +126,7 @@ class LeaderResearchSourceService(
                 expectedLimitation = true
             )
         }
-        results += LeaderResearchSourceRunResult(
-            LeaderResearchSourceType.PUBLIC_LEADERBOARD,
-            emptyList(),
-            LeaderResearchSourceStatus.DISABLED,
-            limitation = PUBLIC_LEADERBOARD_DISABLED_LIMITATION,
-            expectedLimitation = true
-        )
+        results += previewPublicLeaderboard()
         return results
     }
 
@@ -156,14 +154,16 @@ class LeaderResearchSourceService(
                 errorMessage = discovery.errorMessage
             )
             eventService.record(
-                type = if (discovery.status == LeaderResearchSourceStatus.SUCCESS) {
-                    LeaderResearchEventType.SOURCE_SUCCESS
-                } else {
-                    LeaderResearchEventType.SOURCE_FAILURE
+                type = when (discovery.status) {
+                    LeaderResearchSourceStatus.SUCCESS -> LeaderResearchEventType.SOURCE_SUCCESS
+                    LeaderResearchSourceStatus.DISABLED -> LeaderResearchEventType.SOURCE_DISABLED
+                    else -> LeaderResearchEventType.SOURCE_FAILURE
                 },
                 runId = runId,
                 reason = if (discovery.status == LeaderResearchSourceStatus.SUCCESS) {
                     "${sourceType.name} discovered ${discovery.candidates.size} candidates"
+                } else if (discovery.status == LeaderResearchSourceStatus.DISABLED) {
+                    "${sourceType.name} disabled: ${discovery.limitation ?: discovery.errorMessage ?: discovery.status.name}"
                 } else {
                     "${sourceType.name} degraded: ${discovery.errorMessage ?: discovery.limitation ?: discovery.status.name}"
                 },
@@ -200,7 +200,7 @@ class LeaderResearchSourceService(
     private fun discoverWatchlist(runId: Long?): SourceDiscovery {
         val wallets = watchlistWallets()
         val backfill = backfillWalletActivities(wallets, LeaderResearchSourceType.WATCHLIST, runId)
-        val candidates = wallets.map { wallet ->
+        val candidates = wallets.mapNotNull { wallet ->
             upsertCandidate(
                 wallet = wallet,
                 sourceType = LeaderResearchSourceType.WATCHLIST,
@@ -222,7 +222,7 @@ class LeaderResearchSourceService(
     private fun discoverExistingLeaders(runId: Long?): SourceDiscovery {
         val leaders = leaderRepository.findAllByOrderByCreatedAtAsc()
         val backfill = backfillWalletActivities(leaders.map { it.leaderAddress }, LeaderResearchSourceType.EXISTING_LEADER, runId)
-        val candidates = leaders.map { leader ->
+        val candidates = leaders.mapNotNull { leader ->
             val pool = leader.id?.let { leaderPoolRepository.findByLeaderId(it) }
             upsertCandidate(
                 wallet = leader.leaderAddress,
@@ -248,7 +248,7 @@ class LeaderResearchSourceService(
         val freshAfter = System.currentTimeMillis() - FRESH_ACTIVITY_WINDOW_MS
         val events = activityEventRepository.findByUsableForDiscoveryTrueAndEventTimeGreaterThanEqual(freshAfter)
         val wallets = events.mapNotNull { it.normalizedWallet }.distinct()
-        val candidates = wallets.mapIndexed { index, wallet ->
+        val candidates = wallets.mapIndexedNotNull { index, wallet ->
             upsertCandidate(
                 wallet = wallet,
                 sourceType = LeaderResearchSourceType.ACTIVITY_DERIVED,
@@ -265,6 +265,66 @@ class LeaderResearchSourceService(
             errorClass = backfill.errorClass(),
             errorMessage = backfill.errorMessage()
         )
+    }
+
+    private fun discoverPublicLeaderboard(runId: Long?): SourceDiscovery {
+        val result = publicLeaderboardClient.fetch()
+        if (!result.enabled) {
+            return SourceDiscovery(
+                candidates = emptyList(),
+                status = LeaderResearchSourceStatus.DISABLED,
+                limitation = result.disabledReason
+            )
+        }
+        val backfill = backfillWalletActivities(result.candidates.map { it.wallet }, LeaderResearchSourceType.PUBLIC_LEADERBOARD, runId)
+        val candidates = result.candidates.mapNotNull { item ->
+            upsertCandidate(
+                wallet = item.wallet,
+                sourceType = LeaderResearchSourceType.PUBLIC_LEADERBOARD,
+                leader = leaderRepository.findByLeaderAddress(item.wallet),
+                sourceRank = item.sourceRank,
+                provenance = LeaderCandidateProvenance.AGENT_CREATED,
+                sourceEvidence = item.evidence,
+                runId = runId
+            )
+        }
+        return SourceDiscovery(
+            candidates = candidates,
+            status = backfill.status(),
+            errorClass = backfill.errorClass(),
+            errorMessage = backfill.errorMessage(),
+            limitation = "endpoint=${result.endpoint}, category=${result.category}, timePeriod=${result.timePeriod}, orderBy=${result.orderBy}, limit=${result.limit}"
+        )
+    }
+
+    private fun previewPublicLeaderboard(): LeaderResearchSourceRunResult {
+        return try {
+            val result = publicLeaderboardClient.fetch()
+            if (!result.enabled) {
+                LeaderResearchSourceRunResult(
+                    LeaderResearchSourceType.PUBLIC_LEADERBOARD,
+                    emptyList(),
+                    LeaderResearchSourceStatus.DISABLED,
+                    limitation = result.disabledReason,
+                    expectedLimitation = true
+                )
+            } else {
+                LeaderResearchSourceRunResult(
+                    LeaderResearchSourceType.PUBLIC_LEADERBOARD,
+                    result.candidates.map { transientCandidate(it.wallet, LeaderResearchSourceType.PUBLIC_LEADERBOARD, sourceRank = it.sourceRank) },
+                    LeaderResearchSourceStatus.SUCCESS,
+                    limitation = "endpoint=${result.endpoint}, category=${result.category}, timePeriod=${result.timePeriod}, orderBy=${result.orderBy}, limit=${result.limit}"
+                )
+            }
+        } catch (e: Exception) {
+            LeaderResearchSourceRunResult(
+                LeaderResearchSourceType.PUBLIC_LEADERBOARD,
+                emptyList(),
+                LeaderResearchSourceStatus.FAILURE,
+                errorClass = e::class.java.simpleName,
+                errorMessage = e.message
+            )
+        }
     }
 
     private fun activeResearchWallets(): List<String> {
@@ -325,44 +385,35 @@ class LeaderResearchSourceService(
         provenance: LeaderCandidateProvenance,
         sourceEvidence: String,
         runId: Long?
-    ): LeaderResearchCandidate {
+    ): LeaderResearchCandidate? {
         val normalized = ingestionService.normalizeWallet(wallet)
             ?: throw IllegalArgumentException("Invalid wallet for research candidate: $wallet")
         val now = System.currentTimeMillis()
         val existing = candidateRepository.findByNormalizedWallet(normalized)
+        intakeExclusionReason(existing, leader)?.let { exclusionReason ->
+            eventService.record(
+                type = LeaderResearchEventType.CANDIDATE_UPDATED,
+                candidateId = existing?.id,
+                runId = runId,
+                reason = "Intake excluded ${sourceType.name}: $exclusionReason",
+                payloadSummary = appendEvidence(existing?.sourceEvidence, sourceEvidence),
+                dedupeKey = "candidate-excluded:$normalized:${sourceType.name}:$exclusionReason:$runId"
+            )
+            return null
+        }
         val saved = if (existing == null) {
-            candidateRepository.save(
-                LeaderResearchCandidate(
-                    normalizedWallet = normalized,
-                    leaderId = leader?.id,
-                    poolId = poolId,
-                    researchState = LeaderResearchState.DISCOVERED,
-                    source = sourceType.name,
-                    sourceRank = sourceRank,
-                    agentOwned = provenance == LeaderCandidateProvenance.AGENT_CREATED,
-                    provenance = provenance,
-                    sourceEvidence = sourceEvidence,
-                    firstSeenAt = now,
-                    lastSourceSeenAt = now,
-                    lastTransitionAt = now,
-                    createdAt = now,
-                    updatedAt = now
-                )
+            saveNewCandidate(
+                normalized = normalized,
+                leader = leader,
+                poolId = poolId,
+                sourceType = sourceType,
+                sourceRank = sourceRank,
+                provenance = provenance,
+                sourceEvidence = sourceEvidence,
+                now = now
             )
         } else {
-            val shouldPreserveHuman = existing.locked || existing.provenance == LeaderCandidateProvenance.MANUAL_LOCKED
-            candidateRepository.save(
-                existing.copy(
-                    leaderId = existing.leaderId ?: leader?.id,
-                    poolId = existing.poolId ?: poolId,
-                    source = if (shouldPreserveHuman) existing.source else mergeSource(existing.source, sourceType.name),
-                    sourceRank = existing.sourceRank ?: sourceRank,
-                    provenance = if (shouldPreserveHuman) existing.provenance else strongestProvenance(existing.provenance, provenance),
-                    sourceEvidence = appendEvidence(existing.sourceEvidence, sourceEvidence),
-                    lastSourceSeenAt = now,
-                    updatedAt = now
-                )
-            )
+            updateExistingCandidate(existing, leader, poolId, sourceType, sourceRank, provenance, sourceEvidence, now)
         }
         eventService.record(
             type = if (existing == null) LeaderResearchEventType.CANDIDATE_DISCOVERED else LeaderResearchEventType.CANDIDATE_UPDATED,
@@ -373,6 +424,74 @@ class LeaderResearchSourceService(
             dedupeKey = "candidate:${saved.normalizedWallet}:${sourceType.name}:$runId"
         )
         return saved
+    }
+
+    private fun intakeExclusionReason(existing: LeaderResearchCandidate?, leader: Leader?): String? {
+        if (existing?.retiredAt != null || existing?.researchState == LeaderResearchState.RETIRED) return "RETIRED"
+        if (existing?.riskFlags?.contains("BLACKLISTED", ignoreCase = true) == true) return "BLACKLISTED"
+        if (leader?.id != null && copyTradingRepository.findByLeaderIdAndEnabledTrue(leader.id).isNotEmpty()) {
+            return "EXISTING_ENABLED_COPY_TRADING"
+        }
+        return null
+    }
+
+    private fun saveNewCandidate(
+        normalized: String,
+        leader: Leader?,
+        poolId: Long?,
+        sourceType: LeaderResearchSourceType,
+        sourceRank: Int?,
+        provenance: LeaderCandidateProvenance,
+        sourceEvidence: String,
+        now: Long
+    ): LeaderResearchCandidate {
+        val candidate = LeaderResearchCandidate(
+            normalizedWallet = normalized,
+            leaderId = leader?.id,
+            poolId = poolId,
+            researchState = LeaderResearchState.DISCOVERED,
+            source = sourceType.name,
+            sourceRank = sourceRank,
+            agentOwned = provenance == LeaderCandidateProvenance.AGENT_CREATED,
+            provenance = provenance,
+            sourceEvidence = sourceEvidence,
+            firstSeenAt = now,
+            lastSourceSeenAt = now,
+            lastTransitionAt = now,
+            createdAt = now,
+            updatedAt = now
+        )
+        return try {
+            candidateRepository.save(candidate)
+        } catch (e: DataIntegrityViolationException) {
+            val concurrent = candidateRepository.findByNormalizedWallet(normalized) ?: throw e
+            updateExistingCandidate(concurrent, leader, poolId, sourceType, sourceRank, provenance, sourceEvidence, now)
+        }
+    }
+
+    private fun updateExistingCandidate(
+        existing: LeaderResearchCandidate,
+        leader: Leader?,
+        poolId: Long?,
+        sourceType: LeaderResearchSourceType,
+        sourceRank: Int?,
+        provenance: LeaderCandidateProvenance,
+        sourceEvidence: String,
+        now: Long
+    ): LeaderResearchCandidate {
+        val shouldPreserveHuman = existing.locked || existing.provenance == LeaderCandidateProvenance.MANUAL_LOCKED
+        return candidateRepository.save(
+            existing.copy(
+                leaderId = existing.leaderId ?: leader?.id,
+                poolId = existing.poolId ?: poolId,
+                source = if (shouldPreserveHuman) existing.source else mergeSource(existing.source, sourceType.name),
+                sourceRank = existing.sourceRank ?: sourceRank,
+                provenance = if (shouldPreserveHuman) existing.provenance else strongestProvenance(existing.provenance, provenance),
+                sourceEvidence = appendEvidence(existing.sourceEvidence, sourceEvidence),
+                lastSourceSeenAt = now,
+                updatedAt = now
+            )
+        )
     }
 
     private fun saveSourceState(
@@ -415,30 +534,6 @@ class LeaderResearchSourceService(
             status = LeaderResearchSourceStatus.DEGRADED,
             limitation = GLOBAL_CAPTURE_DISABLED_LIMITATION,
             expectedLimitation = expectedLimitation
-        )
-    }
-
-    private fun markPublicLeaderboardDisabled(runId: Long?): LeaderResearchSourceRunResult {
-        saveSourceState(
-            sourceType = LeaderResearchSourceType.PUBLIC_LEADERBOARD,
-            status = LeaderResearchSourceStatus.DISABLED,
-            now = System.currentTimeMillis(),
-            candidateCount = 0,
-            disabledReason = PUBLIC_LEADERBOARD_DISABLED_LIMITATION,
-            stale = false
-        )
-        eventService.record(
-            type = LeaderResearchEventType.SOURCE_DISABLED,
-            runId = runId,
-            reason = PUBLIC_LEADERBOARD_DISABLED_LIMITATION,
-            dedupeKey = "source:${LeaderResearchSourceType.PUBLIC_LEADERBOARD.name}:disabled"
-        )
-        return LeaderResearchSourceRunResult(
-            sourceType = LeaderResearchSourceType.PUBLIC_LEADERBOARD,
-            candidates = emptyList(),
-            status = LeaderResearchSourceStatus.DISABLED,
-            limitation = PUBLIC_LEADERBOARD_DISABLED_LIMITATION,
-            expectedLimitation = true
         )
     }
 
@@ -512,7 +607,5 @@ class LeaderResearchSourceService(
         const val MAX_BACKFILL_WALLETS_PER_RUN = 50
         private const val GLOBAL_CAPTURE_DISABLED_LIMITATION =
             "Global activity capture is disabled; activity-derived discovery only uses already persisted research events."
-        private const val PUBLIC_LEADERBOARD_DISABLED_LIMITATION =
-            "Public leaderboard source is intentionally disabled in v1; discovery uses watchlist, existing leaders, and persisted activity only."
     }
 }

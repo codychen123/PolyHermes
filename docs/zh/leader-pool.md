@@ -14,9 +14,12 @@
 
 - 不会自动加仓。
 - 不会自动启用大额跟单。
-- 不会自动抓取 Polymarket leaderboard。
 - 不会因为加入池子或更新状态而自动创建真实跟单配置。
 - 从池子创建的小额试跟配置默认禁用，使用 `FIXED` 模式和保守参数。
+- Leader Research 已接入 Polymarket public leaderboard 作为外部候选源，但外部发现候选不会直接进入真钱跟单。
+- `TRIAL_READY` 仍不等于 `TRIAL` 或 `ACTIVE`；如果要创建真钱试跟，还需要用户显式打开 Autopilot 开关，并通过账户预算、单 leader 上限、日亏损、订单数、价格范围、仓位和 kill switch 风控。
+- Autopilot 关闭时，Leader Research 和 Leader 池 CTA 只能创建 `enabled=false` 的禁用试跟配置，类似模拟/观察模式。
+- Autopilot 开启时，也只允许小额 fixed amount 试跟，不会自动放大金额或放宽风控。
 
 ## 默认试跟参数
 

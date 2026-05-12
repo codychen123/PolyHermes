@@ -215,10 +215,20 @@ data class LeaderResearchEventDto(
 data class LeaderResearchApprovalRequest(
     val candidateId: Long,
     val accountId: Long,
-    val confirm: Boolean = false
+    val confirm: Boolean = false,
+    val autopilotEnabled: Boolean = false,
+    val maxBudget: String? = null,
+    val singleLeaderMaxAmount: String? = null,
+    val maxDailyLoss: String? = null,
+    val maxDailyOrders: Int? = null,
+    val maxPositionValue: String? = null,
+    val minPrice: String? = null,
+    val maxPrice: String? = null
 )
 
 data class LeaderResearchApprovalResponse(
     val copyTrading: CopyTradingDto,
-    val warning: String = "已创建禁用状态的试跟配置；需要你手动启用后才会真钱跟单。"
+    val warning: String = "已创建禁用状态的试跟配置；需要你手动启用后才会真钱跟单。",
+    val autopilotDecision: String? = null,
+    val autopilotReason: String? = null
 )

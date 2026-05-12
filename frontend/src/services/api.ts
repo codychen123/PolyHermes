@@ -16,8 +16,14 @@ import type {
   LeaderResearchEvent,
   LeaderResearchRun,
   LeaderResearchRunRequest,
+  LeaderAutopilotStatus,
+  LeaderResearchShortlistResponse,
   LeaderResearchSourceState,
   LeaderResearchSummary,
+  LeaderResearchWatchlistPreviewRequest,
+  LeaderResearchWatchlistPreviewResponse,
+  LeaderResearchWatchlistResponse,
+  LeaderResearchWatchlistSaveRequest,
   NotificationConfig,
   NotificationConfigRequest,
   NotificationConfigUpdateRequest,
@@ -422,6 +428,36 @@ export const apiService = {
 
     sourceHealth: () =>
       apiClient.post<ApiResponse<LeaderResearchSourceState[]>>('/copy-trading/leader-research/source-health', {}),
+
+    shortlist: (data: { accountId?: number; limit?: number } = {}) =>
+      apiClient.post<ApiResponse<LeaderResearchShortlistResponse>>('/copy-trading/leader-research/shortlist', data),
+
+    watchlist: () =>
+      apiClient.post<ApiResponse<LeaderResearchWatchlistResponse>>('/copy-trading/leader-research/watchlist', {}),
+
+    previewWatchlist: (data: LeaderResearchWatchlistPreviewRequest) =>
+      apiClient.post<ApiResponse<LeaderResearchWatchlistPreviewResponse>>('/copy-trading/leader-research/watchlist/preview', data),
+
+    saveWatchlist: (data: LeaderResearchWatchlistSaveRequest) =>
+      apiClient.post<ApiResponse<LeaderResearchWatchlistResponse>>('/copy-trading/leader-research/watchlist/save', data),
+
+    autopilotStatus: (data: { accountId: number }) =>
+      apiClient.post<ApiResponse<LeaderAutopilotStatus>>('/copy-trading/leader-research/autopilot/status', data),
+
+    updateAutopilot: (data: {
+      accountId: number
+      enabled?: boolean
+      resume?: boolean
+      confirm?: boolean
+      maxBudget?: string
+      singleLeaderMaxAmount?: string
+      maxDailyLoss?: string
+      maxDailyOrders?: number
+      maxPositionValue?: string
+      minPrice?: string
+      maxPrice?: string
+    }) =>
+      apiClient.post<ApiResponse<LeaderAutopilotStatus>>('/copy-trading/leader-research/autopilot/update', data),
 
     events: (data: { page?: number; size?: number } = {}) =>
       apiClient.post<ApiResponse<LeaderResearchEvent[]>>('/copy-trading/leader-research/events/list', data),

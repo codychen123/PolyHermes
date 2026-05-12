@@ -5,6 +5,7 @@ import com.wrbug.polymarketbot.enums.ErrorCode
 import com.wrbug.polymarketbot.service.accounts.AccountService
 import com.wrbug.polymarketbot.util.toSafeBigDecimal
 import kotlinx.coroutines.runBlocking
+import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.context.MessageSource
 import org.springframework.http.ResponseEntity
@@ -71,7 +72,10 @@ class AccountController(
      * 通过私钥导入账户
      */
     @PostMapping("/import")
-    fun importAccount(@RequestBody request: AccountImportRequest): ResponseEntity<ApiResponse<AccountDto>> {
+    fun importAccount(
+        @RequestBody request: AccountImportRequest,
+        httpRequest: HttpServletRequest
+    ): ResponseEntity<ApiResponse<AccountDto>> {
         return try {
             // 参数验证
             if (request.privateKey.isBlank()) {
@@ -81,7 +85,7 @@ class AccountController(
                 return ResponseEntity.ok(ApiResponse.error(ErrorCode.PARAM_WALLET_ADDRESS_EMPTY, messageSource = messageSource))
             }
 
-            val result = accountService.importAccount(request)
+            val result = accountService.importAccount(request, currentUsername(httpRequest))
             result.fold(
                 onSuccess = { account ->
                     ResponseEntity.ok(ApiResponse.success(account))
@@ -108,6 +112,10 @@ class AccountController(
             logger.error("导入账户异常: ${e.message}", e)
             ResponseEntity.ok(ApiResponse.error(ErrorCode.SERVER_ACCOUNT_IMPORT_FAILED, e.message, messageSource))
         }
+    }
+
+    private fun currentUsername(request: HttpServletRequest): String? {
+        return request.getAttribute("username") as? String
     }
 
     /**
@@ -621,4 +629,3 @@ class AccountController(
     }
 
 }
-

@@ -12,6 +12,9 @@ data class Account(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
+
+    @Column(name = "user_id")
+    val userId: Long? = null,
     
     @Column(name = "private_key", nullable = false, length = 500)
     val privateKey: String,  // 私钥（AES 加密存储）
@@ -49,4 +52,3 @@ data class Account(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Long = System.currentTimeMillis()
 )
-

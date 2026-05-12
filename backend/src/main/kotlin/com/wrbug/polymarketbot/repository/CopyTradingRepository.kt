@@ -1,6 +1,9 @@
 package com.wrbug.polymarketbot.repository
 
 import com.wrbug.polymarketbot.entity.CopyTrading
+import com.wrbug.polymarketbot.enums.CopyTradingManagementMode
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
 
@@ -47,6 +50,29 @@ interface CopyTradingRepository : JpaRepository<CopyTrading, Long> {
      * 根据Leader ID查找启用的跟单
      */
     fun findByLeaderIdAndEnabledTrue(leaderId: Long): List<CopyTrading>
+
+    fun findByManagementMode(managementMode: CopyTradingManagementMode): List<CopyTrading>
+
+    fun findByAccountIdAndManagementMode(accountId: Long, managementMode: CopyTradingManagementMode): List<CopyTrading>
+
+    fun findByAccountIdAndLeaderIdAndManagementMode(
+        accountId: Long,
+        leaderId: Long,
+        managementMode: CopyTradingManagementMode
+    ): List<CopyTrading>
+
+    @Query(
+        """
+        select c from CopyTrading c
+        where c.accountId = :accountId
+          and c.managementMode = :managementMode
+          and c.enabled = true
+        """
+    )
+    fun findEnabledByAccountIdAndManagementMode(
+        @Param("accountId") accountId: Long,
+        @Param("managementMode") managementMode: CopyTradingManagementMode
+    ): List<CopyTrading>
     
     /**
      * 统计指定 Leader 的跟单数量

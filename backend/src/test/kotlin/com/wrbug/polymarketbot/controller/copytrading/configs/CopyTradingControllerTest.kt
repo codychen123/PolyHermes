@@ -118,6 +118,7 @@ class CopyTradingControllerTest {
         templateRepository = mock(),
         leaderRepository = mock(),
         monitorService = mock(),
+        autopilotService = mock(),
         jsonUtils = mock(),
         gson = Gson()
     ) {

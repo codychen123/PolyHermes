@@ -45,6 +45,19 @@ class LeaderResearchMapper(
         return candidateDto(candidate, leader, pool, latestSession)
     }
 
+    fun candidateDto(
+        candidate: LeaderResearchCandidate,
+        context: LeaderResearchCandidateDtoContext,
+        latestSession: LeaderPaperSession? = null
+    ): LeaderResearchCandidateDto {
+        return candidateDto(
+            candidate = candidate,
+            leader = candidate.leaderId?.let { context.leadersById[it] },
+            pool = candidate.poolId?.let { context.poolsById[it] },
+            latestSession = latestSession ?: candidate.id?.let { context.latestSessionsByCandidateId[it] }
+        )
+    }
+
     fun candidateDtos(candidates: List<LeaderResearchCandidate>, context: LeaderResearchCandidateDtoContext): List<LeaderResearchCandidateDto> {
         return candidates.map { candidate ->
             val candidateId = candidate.id

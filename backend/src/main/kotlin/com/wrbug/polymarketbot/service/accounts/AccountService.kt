@@ -5,6 +5,7 @@ import com.wrbug.polymarketbot.dto.*
 import com.wrbug.polymarketbot.entity.Account
 import com.wrbug.polymarketbot.enums.WalletType
 import com.wrbug.polymarketbot.repository.AccountRepository
+import com.wrbug.polymarketbot.repository.UserRepository
 import com.wrbug.polymarketbot.util.RetrofitFactory
 import com.wrbug.polymarketbot.util.toSafeBigDecimal
 import com.wrbug.polymarketbot.util.eq
@@ -36,6 +37,7 @@ import java.math.BigInteger
 @Service
 class AccountService(
     private val accountRepository: AccountRepository,
+    private val userRepository: UserRepository,
     private val clobService: PolymarketClobService,
     private val retrofitFactory: RetrofitFactory,
     private val blockchainService: BlockchainService,
@@ -64,7 +66,7 @@ class AccountService(
      * 通过私钥导入账户
      */
     @Transactional
-    fun importAccount(request: AccountImportRequest): Result<AccountDto> {
+    fun importAccount(request: AccountImportRequest, username: String? = null): Result<AccountDto> {
         return try {
             // 1. 验证钱包地址格式
             if (!isValidWalletAddress(request.walletAddress)) {
@@ -152,6 +154,7 @@ class AccountService(
 
             // 9. 创建账户
             val account = Account(
+                userId = resolveUserId(username),
                 privateKey = encryptedPrivateKey,  // 存储加密后的私钥
                 walletAddress = request.walletAddress,
                 proxyAddress = proxyAddress,
@@ -756,6 +759,13 @@ class AccountService(
                 positionCount = statistics.positionCount
             )
         }
+    }
+
+    private fun resolveUserId(username: String?): Long? {
+        return username
+            ?.takeIf { it.isNotBlank() }
+            ?.let { userRepository.findByUsername(it)?.id }
+            ?: userRepository.findByIsDefaultTrue()?.id
     }
 
     /**
@@ -1935,5 +1945,4 @@ class AccountService(
         return blockchainService.queryUsdceBalance(account.proxyAddress)
     }
 }
-
 

@@ -8,10 +8,16 @@ import com.wrbug.polymarketbot.entity.LeaderActivityEvent
 import com.wrbug.polymarketbot.entity.LeaderPool
 import com.wrbug.polymarketbot.entity.LeaderResearchCandidate
 import com.wrbug.polymarketbot.entity.SystemConfig
+import com.wrbug.polymarketbot.enums.CopyTradingManagementMode
 import com.wrbug.polymarketbot.enums.LeaderCandidateProvenance
+import com.wrbug.polymarketbot.enums.LeaderResearchEventType
+import com.wrbug.polymarketbot.enums.LeaderResearchNotificationStatus
 import com.wrbug.polymarketbot.enums.LeaderResearchSourceStatus
 import com.wrbug.polymarketbot.enums.LeaderResearchSourceType
+import com.wrbug.polymarketbot.enums.LeaderResearchState
+import com.wrbug.polymarketbot.entity.CopyTrading
 import com.wrbug.polymarketbot.repository.LeaderActivityEventRepository
+import com.wrbug.polymarketbot.repository.CopyTradingRepository
 import com.wrbug.polymarketbot.repository.LeaderPoolRepository
 import com.wrbug.polymarketbot.repository.LeaderRepository
 import com.wrbug.polymarketbot.repository.LeaderResearchCandidateRepository
@@ -24,9 +30,11 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import retrofit2.Response
+import org.springframework.dao.DataIntegrityViolationException
 
 class LeaderResearchSourceServiceTest {
     private val candidateRepository: LeaderResearchCandidateRepository = mock()
+    private val copyTradingRepository: CopyTradingRepository = mock()
     private val leaderRepository: LeaderRepository = mock()
     private val leaderPoolRepository: LeaderPoolRepository = mock()
     private val activityEventRepository: LeaderActivityEventRepository = mock()
@@ -36,6 +44,7 @@ class LeaderResearchSourceServiceTest {
     private val eventService: LeaderResearchEventService = mock()
     private val ingestionService = LeaderActivityIngestionService(mock(), Gson())
     private val dataApi: PolymarketDataApi = mock()
+    private val publicLeaderboardClient: LeaderPublicLeaderboardDiscoveryClient = mock()
 
     @Test
     fun `discover candidates handles empty disabled invalid duplicate existing leader and locked protection`() {
@@ -51,6 +60,7 @@ class LeaderResearchSourceServiceTest {
             sourceEvidence = "manual note"
         )
         stubCommonDataApi(success = true)
+        stubPublicLeaderboardDisabled()
         Mockito.`when`(systemConfigRepository.findByConfigKey(LeaderResearchSourceService.CONFIG_WATCHLIST))
             .thenReturn(SystemConfig(configKey = LeaderResearchSourceService.CONFIG_WATCHLIST, configValue = "$watchWallet,not-a-wallet,$watchWallet"))
         Mockito.`when`(leaderRepository.findByLeaderAddress(watchWallet)).thenReturn(null)
@@ -76,6 +86,7 @@ class LeaderResearchSourceServiceTest {
         assertEquals(LeaderResearchSourceStatus.DEGRADED, results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.status)
         assertTrue(results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.expectedLimitation)
         assertEquals(LeaderResearchSourceStatus.DISABLED, results.first { it.sourceType == LeaderResearchSourceType.GLOBAL_ACTIVITY_CAPTURE }.status)
+        assertEquals(LeaderResearchSourceStatus.DISABLED, results.first { it.sourceType == LeaderResearchSourceType.PUBLIC_LEADERBOARD }.status)
         val preserved = results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.candidates.single()
         assertTrue(preserved.locked)
         assertEquals("manual", preserved.source)
@@ -90,6 +101,7 @@ class LeaderResearchSourceServiceTest {
         val existingWallet = "0x2222222222222222222222222222222222222222"
         val activityWallet = "0x3333333333333333333333333333333333333333"
         stubCommonDataApi(success = false)
+        stubPublicLeaderboardDisabled()
         Mockito.`when`(systemConfigRepository.findByConfigKey(LeaderResearchSourceService.CONFIG_WATCHLIST))
             .thenReturn(SystemConfig(configKey = LeaderResearchSourceService.CONFIG_WATCHLIST, configValue = watchWallet))
         Mockito.`when`(leaderRepository.findAllByOrderByCreatedAtAsc())
@@ -108,6 +120,7 @@ class LeaderResearchSourceServiceTest {
         assertEquals(LeaderResearchSourceStatus.DEGRADED, results.first { it.sourceType == LeaderResearchSourceType.WATCHLIST }.status)
         assertEquals(LeaderResearchSourceStatus.DEGRADED, results.first { it.sourceType == LeaderResearchSourceType.EXISTING_LEADER }.status)
         assertEquals(LeaderResearchSourceStatus.DEGRADED, results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.status)
+        assertEquals(LeaderResearchSourceStatus.DISABLED, results.first { it.sourceType == LeaderResearchSourceType.PUBLIC_LEADERBOARD }.status)
         assertFalse(results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.expectedLimitation)
         assertTrue(results.flatMap { it.candidates }.map { it.normalizedWallet }.containsAll(listOf(watchWallet, existingWallet, activityWallet)))
     }
@@ -131,8 +144,137 @@ class LeaderResearchSourceServiceTest {
         Mockito.verify(candidateRepository, Mockito.never()).save(anyCandidate())
     }
 
+    @Test
+    fun `concurrent candidate insert conflict reloads and merges existing candidate`() {
+        val wallet = "0x1111111111111111111111111111111111111111"
+        val existing = LeaderResearchCandidate(
+            id = 88L,
+            normalizedWallet = wallet,
+            source = LeaderResearchSourceType.WATCHLIST.name,
+            sourceEvidence = "system_config:old"
+        )
+        stubCommonDataApi(success = true)
+        stubPublicLeaderboardDisabled()
+        Mockito.`when`(systemConfigRepository.findByConfigKey(LeaderResearchSourceService.CONFIG_WATCHLIST))
+            .thenReturn(SystemConfig(configKey = LeaderResearchSourceService.CONFIG_WATCHLIST, configValue = wallet))
+        Mockito.`when`(leaderRepository.findByLeaderAddress(wallet)).thenReturn(null)
+        Mockito.`when`(leaderRepository.findAllByOrderByCreatedAtAsc()).thenReturn(emptyList())
+        Mockito.`when`(activityEventRepository.findByUsableForDiscoveryTrueAndEventTimeGreaterThanEqual(Mockito.anyLong())).thenReturn(emptyList())
+        Mockito.`when`(candidateRepository.findByResearchStateIn(anyResearchStates())).thenReturn(emptyList())
+        Mockito.`when`(candidateRepository.findByNormalizedWallet(wallet))
+            .thenReturn(null)
+            .thenReturn(existing)
+        Mockito.`when`(candidateRepository.save(anyCandidate()))
+            .thenThrow(DataIntegrityViolationException("duplicate normalized_wallet"))
+            .thenAnswer { it.arguments[0] }
+
+        val results = service(globalCaptureEnabled = false).discoverCandidates(runId = 100L)
+
+        val candidate = results.first { it.sourceType == LeaderResearchSourceType.WATCHLIST }.candidates.single()
+        assertEquals(88L, candidate.id)
+        assertTrue(candidate.sourceEvidence!!.contains("system_config:old"))
+        assertTrue(candidate.sourceEvidence!!.contains(LeaderResearchSourceService.CONFIG_WATCHLIST))
+    }
+
+    @Test
+    fun `automatic source preserves locked human fields and only appends evidence`() {
+        val wallet = "0x3333333333333333333333333333333333333333"
+        val locked = LeaderResearchCandidate(
+            id = 30L,
+            normalizedWallet = wallet,
+            source = "manual-source",
+            provenance = LeaderCandidateProvenance.MANUAL_LOCKED,
+            locked = true,
+            sourceRank = 99,
+            sourceEvidence = "human-review"
+        )
+        stubCommonDataApi(success = true)
+        stubPublicLeaderboardDisabled()
+        Mockito.`when`(systemConfigRepository.findByConfigKey(LeaderResearchSourceService.CONFIG_WATCHLIST)).thenReturn(null)
+        Mockito.`when`(leaderRepository.findAllByOrderByCreatedAtAsc()).thenReturn(emptyList())
+        Mockito.`when`(activityEventRepository.findByUsableForDiscoveryTrueAndEventTimeGreaterThanEqual(Mockito.anyLong()))
+            .thenReturn(listOf(activityEvent(wallet)))
+        Mockito.`when`(candidateRepository.findByResearchStateIn(anyResearchStates())).thenReturn(emptyList())
+        Mockito.`when`(candidateRepository.findByNormalizedWallet(wallet)).thenReturn(locked)
+        Mockito.`when`(candidateRepository.save(anyCandidate())).thenAnswer { it.arguments[0] }
+
+        val results = service(globalCaptureEnabled = true).discoverCandidates(runId = 101L)
+
+        val candidate = results.first { it.sourceType == LeaderResearchSourceType.ACTIVITY_DERIVED }.candidates.single()
+        assertEquals("manual-source", candidate.source)
+        assertEquals(LeaderCandidateProvenance.MANUAL_LOCKED, candidate.provenance)
+        assertEquals(99, candidate.sourceRank)
+        assertTrue(candidate.sourceEvidence!!.contains("human-review"))
+        assertTrue(candidate.sourceEvidence!!.contains("leader_activity_event"))
+    }
+
+    @Test
+    fun `intake excludes retired blacklisted and already enabled copy trading candidates`() {
+        val retiredWallet = "0x1111111111111111111111111111111111111111"
+        val blacklistedWallet = "0x2222222222222222222222222222222222222222"
+        val enabledWallet = "0x3333333333333333333333333333333333333333"
+        stubCommonDataApi(success = true)
+        Mockito.`when`(systemConfigRepository.findByConfigKey(LeaderResearchSourceService.CONFIG_WATCHLIST))
+            .thenReturn(SystemConfig(configKey = LeaderResearchSourceService.CONFIG_WATCHLIST, configValue = "$retiredWallet\n$blacklistedWallet\n$enabledWallet"))
+        Mockito.`when`(leaderRepository.findAllByOrderByCreatedAtAsc()).thenReturn(emptyList())
+        Mockito.`when`(activityEventRepository.findByUsableForDiscoveryTrueAndEventTimeGreaterThanEqual(Mockito.anyLong())).thenReturn(emptyList())
+        Mockito.`when`(candidateRepository.findByResearchStateIn(anyResearchStates())).thenReturn(emptyList())
+        Mockito.`when`(leaderRepository.findByLeaderAddress(retiredWallet)).thenReturn(null)
+        Mockito.`when`(leaderRepository.findByLeaderAddress(blacklistedWallet)).thenReturn(null)
+        val enabledLeader = Leader(id = 9L, leaderAddress = enabledWallet)
+        Mockito.`when`(leaderRepository.findByLeaderAddress(enabledWallet)).thenReturn(enabledLeader)
+        Mockito.`when`(copyTradingRepository.findByLeaderIdAndEnabledTrue(9L)).thenReturn(
+            listOf(CopyTrading(id = 50L, accountId = 2L, leaderId = 9L, managementMode = CopyTradingManagementMode.MANUAL))
+        )
+        Mockito.`when`(candidateRepository.findByNormalizedWallet(retiredWallet)).thenReturn(
+            LeaderResearchCandidate(id = 1L, normalizedWallet = retiredWallet, researchState = LeaderResearchState.RETIRED)
+        )
+        Mockito.`when`(candidateRepository.findByNormalizedWallet(blacklistedWallet)).thenReturn(
+            LeaderResearchCandidate(id = 2L, normalizedWallet = blacklistedWallet, riskFlags = "BLACKLISTED")
+        )
+        Mockito.`when`(candidateRepository.findByNormalizedWallet(enabledWallet)).thenReturn(
+            LeaderResearchCandidate(id = 3L, normalizedWallet = enabledWallet, leaderId = 9L)
+        )
+        stubPublicLeaderboardDisabled()
+
+        val results = service(globalCaptureEnabled = false).discoverCandidates(runId = 102L)
+
+        assertEquals(emptyList<LeaderResearchCandidate>(), results.first { it.sourceType == LeaderResearchSourceType.WATCHLIST }.candidates)
+        Mockito.verify(candidateRepository, Mockito.never()).save(Mockito.argThat {
+            it.normalizedWallet == retiredWallet || it.normalizedWallet == blacklistedWallet || it.normalizedWallet == enabledWallet
+        })
+        Mockito.verify(eventService).record(
+            eventType(LeaderResearchEventType.CANDIDATE_UPDATED),
+            Mockito.eq(1L),
+            Mockito.eq(102L),
+            Mockito.contains("RETIRED"),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            notificationStatus(LeaderResearchNotificationStatus.PENDING)
+        )
+        Mockito.verify(eventService).record(
+            eventType(LeaderResearchEventType.CANDIDATE_UPDATED),
+            Mockito.eq(2L),
+            Mockito.eq(102L),
+            Mockito.contains("BLACKLISTED"),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            notificationStatus(LeaderResearchNotificationStatus.PENDING)
+        )
+        Mockito.verify(eventService).record(
+            eventType(LeaderResearchEventType.CANDIDATE_UPDATED),
+            Mockito.eq(3L),
+            Mockito.eq(102L),
+            Mockito.contains("EXISTING_ENABLED_COPY_TRADING"),
+            Mockito.anyString(),
+            Mockito.anyString(),
+            notificationStatus(LeaderResearchNotificationStatus.PENDING)
+        )
+    }
+
     private fun service(globalCaptureEnabled: Boolean) = LeaderResearchSourceService(
         candidateRepository = candidateRepository,
+        copyTradingRepository = copyTradingRepository,
         leaderRepository = leaderRepository,
         leaderPoolRepository = leaderPoolRepository,
         activityEventRepository = activityEventRepository,
@@ -141,9 +283,25 @@ class LeaderResearchSourceServiceTest {
         retrofitFactory = retrofitFactory,
         eventService = eventService,
         ingestionService = ingestionService,
+        publicLeaderboardClient = publicLeaderboardClient,
         backfillLimit = 200,
         globalCaptureEnabled = globalCaptureEnabled
     )
+
+    private fun stubPublicLeaderboardDisabled() {
+        Mockito.`when`(publicLeaderboardClient.fetch()).thenReturn(
+            PublicLeaderboardDiscoveryResult(
+                enabled = false,
+                candidates = emptyList(),
+                endpoint = LeaderPublicLeaderboardDiscoveryClient.ENDPOINT,
+                category = "OVERALL",
+                timePeriod = "MONTH",
+                orderBy = "PNL",
+                limit = 25,
+                disabledReason = "disabled in test"
+            )
+        )
+    }
 
     private fun stubCommonDataApi(success: Boolean) {
         Mockito.`when`(retrofitFactory.createDataApi()).thenReturn(dataApi)
@@ -206,6 +364,16 @@ class LeaderResearchSourceServiceTest {
     private fun anyStringList(): List<String> {
         Mockito.anyList<String>()
         return emptyList()
+    }
+
+    private fun eventType(value: LeaderResearchEventType): LeaderResearchEventType {
+        Mockito.argThat<LeaderResearchEventType> { it == value }
+        return value
+    }
+
+    private fun notificationStatus(value: LeaderResearchNotificationStatus): LeaderResearchNotificationStatus {
+        Mockito.argThat<LeaderResearchNotificationStatus> { it == value }
+        return value
     }
 
     @Suppress("UNCHECKED_CAST")

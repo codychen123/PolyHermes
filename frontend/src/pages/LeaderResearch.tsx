@@ -15,6 +15,7 @@ import {
   Select,
   Space,
   Statistic,
+  Switch,
   Table,
   Tabs,
   Tag,
@@ -37,9 +38,12 @@ import type {
   LeaderResearchCandidate,
   LeaderResearchCandidateDetail,
   LeaderResearchCandidateListResponse,
+  LeaderResearchShortlistCard,
+  LeaderResearchShortlistResponse,
   LeaderResearchSourceState,
   LeaderResearchState,
-  LeaderResearchSummary
+  LeaderResearchSummary,
+  LeaderResearchWatchlistPreviewResponse
 } from '../types'
 
 const { Paragraph, Text, Title } = Typography
@@ -78,6 +82,14 @@ const approvalPreview = (candidate?: LeaderResearchCandidate | null) => ({
   maxPositionValue: usdc(candidate?.suggestedMaxPositionValue)
 })
 
+const responseError = (code?: number, msg?: string, fallback?: string) => {
+  if (!msg) return fallback || 'Request failed'
+  if (code && [401, 403, 409, 422, 2001, 2004, 4201, 4264, 4265, 5456].includes(code)) {
+    return `${msg} (${code})`
+  }
+  return msg
+}
+
 const valuationTag = (status?: string) => {
   if (!status) return <Tag>-</Tag>
   return <Tag color={VALUATION_COLORS[status] || 'default'}>{status}</Tag>
@@ -88,7 +100,9 @@ const LeaderResearch: React.FC = () => {
   const [summary, setSummary] = useState<LeaderResearchSummary | null>(null)
   const [candidates, setCandidates] = useState<LeaderResearchCandidateListResponse>({ list: [], total: 0, summary: summaryFallback })
   const [sourceHealth, setSourceHealth] = useState<LeaderResearchSourceState[]>([])
+  const [shortlist, setShortlist] = useState<LeaderResearchShortlistResponse | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [activeAccountId, setActiveAccountId] = useState<number | undefined>()
   const [stateFilter, setStateFilter] = useState<LeaderResearchState | undefined>()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -97,16 +111,23 @@ const LeaderResearch: React.FC = () => {
   const [detail, setDetail] = useState<LeaderResearchCandidateDetail | null>(null)
   const [approvalCandidate, setApprovalCandidate] = useState<LeaderResearchCandidate | null>(null)
   const [approvalLoading, setApprovalLoading] = useState(false)
+  const [approvalError, setApprovalError] = useState<string | null>(null)
+  const [watchlistRaw, setWatchlistRaw] = useState('')
+  const [watchlistPreview, setWatchlistPreview] = useState<LeaderResearchWatchlistPreviewResponse | null>(null)
+  const [watchlistLoading, setWatchlistLoading] = useState(false)
   const [approvalForm] = Form.useForm()
+  const autopilotApprovalEnabled = Form.useWatch('autopilotEnabled', approvalForm)
 
   const loadAll = async (showLoading = true) => {
     if (showLoading) setLoading(true)
     try {
-      const [candidateResp, summaryResp, sourceResp, accountResp] = await Promise.all([
+      const [candidateResp, summaryResp, sourceResp, accountResp, shortlistResp, watchlistResp] = await Promise.all([
         apiService.leaderResearch.listCandidates({ page: 0, size: 50, state: stateFilter, query: query || undefined }),
         apiService.leaderResearch.summary(),
         apiService.leaderResearch.sourceHealth(),
-        apiService.accounts.list()
+        apiService.accounts.list(),
+        apiService.leaderResearch.shortlist({ accountId: activeAccountId, limit: 8 }),
+        apiService.leaderResearch.watchlist()
       ])
       if (candidateResp.data.code === 0 && candidateResp.data.data) {
         setCandidates(candidateResp.data.data)
@@ -120,7 +141,15 @@ const LeaderResearch: React.FC = () => {
         setSourceHealth(sourceResp.data.data)
       }
       if (accountResp.data.code === 0 && accountResp.data.data) {
-        setAccounts(accountResp.data.data.list || [])
+        const nextAccounts = accountResp.data.data.list || []
+        setAccounts(nextAccounts)
+        setActiveAccountId(current => current ?? nextAccounts[0]?.id)
+      }
+      if (shortlistResp.data.code === 0 && shortlistResp.data.data) {
+        setShortlist(shortlistResp.data.data)
+      }
+      if (watchlistResp.data.code === 0 && watchlistResp.data.data) {
+        setWatchlistRaw(watchlistResp.data.data.wallets.join('\n'))
       }
     } catch (error: any) {
       message.error(error.message || t('leaderResearch.fetchFailed'))
@@ -131,7 +160,7 @@ const LeaderResearch: React.FC = () => {
 
   useEffect(() => {
     loadAll()
-  }, [stateFilter])
+  }, [stateFilter, activeAccountId])
 
   useEffect(() => {
     const lastRunStatus = summary?.lastRun?.status || candidates.summary?.lastRun?.status
@@ -176,30 +205,92 @@ const LeaderResearch: React.FC = () => {
 
   const openApproval = (candidate: LeaderResearchCandidate) => {
     setApprovalCandidate(candidate)
-    approvalForm.setFieldsValue({ accountId: accounts[0]?.id })
+    setApprovalError(null)
+    approvalForm.setFieldsValue({
+      accountId: activeAccountId || accounts[0]?.id,
+      autopilotEnabled: false,
+      maxBudget: autopilotPolicy?.maxBudget || '25',
+      singleLeaderMaxAmount: candidate.suggestedFixedAmount || autopilotPolicy?.singleLeaderMaxAmount || '5',
+      maxDailyLoss: candidate.suggestedMaxDailyLoss || autopilotPolicy?.maxDailyLoss || '5',
+      maxDailyOrders: candidate.suggestedMaxDailyOrders || autopilotPolicy?.maxDailyOrders || 5,
+      maxPositionValue: candidate.suggestedMaxPositionValue || autopilotPolicy?.maxPositionValue || '10',
+      minPrice: candidate.suggestedMinPrice || autopilotPolicy?.minPrice || '0.1',
+      maxPrice: candidate.suggestedMaxPrice || autopilotPolicy?.maxPrice || '0.8'
+    })
   }
 
   const submitApproval = async () => {
     if (!approvalCandidate) return
     const values = await approvalForm.validateFields()
     setApprovalLoading(true)
+    setApprovalError(null)
     try {
       const response = await apiService.leaderResearch.createDisabledTrialConfig({
         candidateId: approvalCandidate.id,
         accountId: values.accountId,
-        confirm: true
+        confirm: true,
+        autopilotEnabled: values.autopilotEnabled === true,
+        ...(values.autopilotEnabled === true ? {
+          maxBudget: values.maxBudget,
+          singleLeaderMaxAmount: values.singleLeaderMaxAmount,
+          maxDailyLoss: values.maxDailyLoss,
+          maxDailyOrders: Number(values.maxDailyOrders),
+          maxPositionValue: values.maxPositionValue,
+          minPrice: values.minPrice,
+          maxPrice: values.maxPrice
+        } : {})
       })
       if (response.data.code === 0) {
-        message.success(t('leaderResearch.approvalCreated'))
+        message.success(values.autopilotEnabled ? t('leaderResearch.autopilotTrialCreated') : t('leaderResearch.approvalCreated'))
+        setApprovalError(null)
         setApprovalCandidate(null)
         await loadAll()
       } else {
-        message.error(response.data.msg || t('leaderResearch.approvalFailed'))
+        const errorText = responseError(response.data.code, response.data.msg, t('leaderResearch.approvalFailed'))
+        setApprovalError(errorText)
+        message.error(errorText)
       }
     } catch (error: any) {
-      message.error(error.message || t('leaderResearch.approvalFailed'))
+      const errorText = error.message || t('leaderResearch.approvalFailed')
+      setApprovalError(errorText)
+      message.error(errorText)
     } finally {
       setApprovalLoading(false)
+    }
+  }
+
+  const previewWatchlist = async () => {
+    setWatchlistLoading(true)
+    try {
+      const response = await apiService.leaderResearch.previewWatchlist({ rawWallets: watchlistRaw })
+      if (response.data.code === 0 && response.data.data) {
+        setWatchlistPreview(response.data.data)
+      } else {
+        message.error(responseError(response.data.code, response.data.msg, t('leaderResearch.watchlistPreviewFailed')))
+      }
+    } catch (error: any) {
+      message.error(error.message || t('leaderResearch.watchlistPreviewFailed'))
+    } finally {
+      setWatchlistLoading(false)
+    }
+  }
+
+  const saveWatchlist = async () => {
+    setWatchlistLoading(true)
+    try {
+      const response = await apiService.leaderResearch.saveWatchlist({ rawWallets: watchlistRaw, confirm: true })
+      if (response.data.code === 0 && response.data.data) {
+        message.success(t('leaderResearch.watchlistSaved'))
+        setWatchlistPreview(null)
+        setWatchlistRaw(response.data.data.wallets.join('\n'))
+        await loadAll(false)
+      } else {
+        message.error(responseError(response.data.code, response.data.msg, t('leaderResearch.watchlistSaveFailed')))
+      }
+    } catch (error: any) {
+      message.error(error.message || t('leaderResearch.watchlistSaveFailed'))
+    } finally {
+      setWatchlistLoading(false)
     }
   }
 
@@ -207,6 +298,7 @@ const LeaderResearch: React.FC = () => {
   const pendingDecisions = candidates.list.filter(candidate => candidate.researchState === 'TRIAL_READY')
   const lastRun = activeSummary.lastRun
   const activeApprovalPreview = approvalPreview(approvalCandidate)
+  const autopilotPolicy = shortlist?.autopilot
 
   const columns = [
     {
@@ -314,6 +406,33 @@ const LeaderResearch: React.FC = () => {
             message={t('leaderResearch.safetyTitle')}
             description={t('leaderResearch.safetyDesc')}
           />
+          <Row gutter={[12, 12]}>
+            <Col xs={24} lg={8}>
+              <Card size="small" title={t('leaderResearch.autopilotStatus')}>
+                <Space direction="vertical" size={4}>
+                  <Tag color={autopilotPolicy?.state === 'ON' ? 'green' : autopilotPolicy?.state === 'PAUSED' ? 'orange' : 'default'}>
+                    {autopilotPolicy?.state || 'OFF'}
+                  </Tag>
+                  <Text type="secondary">{t('leaderResearch.autopilotDefault')}</Text>
+                  {autopilotPolicy?.pauseReason && <Text type="secondary">{autopilotPolicy.pauseReason}</Text>}
+                </Space>
+              </Card>
+            </Col>
+            <Col xs={24} lg={16}>
+              <Card size="small" title={t('leaderResearch.activeAccount')}>
+                <Select
+                  style={{ width: '100%' }}
+                  placeholder={t('leaderPool.selectAccount')}
+                  value={activeAccountId}
+                  onChange={setActiveAccountId}
+                  options={accounts.map(account => ({
+                    value: account.id,
+                    label: `${account.accountName || account.walletAddress} (${account.proxyAddress?.slice(0, 8)}...)`
+                  }))}
+                />
+              </Card>
+            </Col>
+          </Row>
           {activeSummary.sourceLimitations?.length > 0 && (
             <Alert
               type="warning"
@@ -325,6 +444,46 @@ const LeaderResearch: React.FC = () => {
         </Space>
       </Card>
 
+      <Card title={t('leaderResearch.shortlistTitle')}>
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <ShortlistSection
+            title={t('leaderResearch.readyToTrial')}
+            cards={shortlist?.readyToTrial || []}
+            empty={t('leaderResearch.noReadyToTrial')}
+            onDetail={openDetail}
+            onApprove={openApproval}
+            ctaLabel={t('leaderResearch.createTrialChoice')}
+          />
+          <ShortlistSection
+            title={t('leaderResearch.promisingPaper')}
+            cards={shortlist?.promisingPaper || []}
+            empty={t('leaderResearch.noPromisingPaper')}
+            onDetail={openDetail}
+            onApprove={openApproval}
+            ctaLabel={t('leaderResearch.createTrialChoice')}
+          />
+          <ShortlistSection
+            title={t('leaderResearch.newCandidates')}
+            cards={shortlist?.newCandidates || []}
+            empty={t('leaderResearch.noNewCandidates')}
+            onDetail={openDetail}
+            onApprove={openApproval}
+            ctaLabel={t('leaderResearch.createTrialChoice')}
+          />
+          <ShortlistSection
+            title={t('leaderResearch.blockedOrCooling')}
+            cards={shortlist?.blockedOrCooling || []}
+            empty={t('leaderResearch.noBlockedOrCooling')}
+            onDetail={openDetail}
+            onApprove={openApproval}
+            ctaLabel={t('leaderResearch.createTrialChoice')}
+          />
+          {shortlist?.emptyReasons?.length ? (
+            <Alert type="warning" showIcon message={t('leaderResearch.emptyReasons')} description={shortlist.emptyReasons.join(' | ')} />
+          ) : null}
+        </Space>
+      </Card>
+
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={4}><Card><Statistic title={t('leaderResearch.states.DISCOVERED')} value={activeSummary.discoveredCount} /></Card></Col>
         <Col xs={24} sm={12} lg={4}><Card><Statistic title={t('leaderResearch.states.CANDIDATE')} value={activeSummary.candidateCount} /></Card></Col>
@@ -333,6 +492,36 @@ const LeaderResearch: React.FC = () => {
         <Col xs={24} sm={12} lg={4}><Card><Statistic title={t('leaderResearch.states.COOLDOWN')} value={activeSummary.cooldownCount} /></Card></Col>
         <Col xs={24} sm={12} lg={4}><Card><Statistic title={t('leaderResearch.states.RETIRED')} value={activeSummary.retiredCount} /></Card></Col>
       </Row>
+
+      <Card title={t('leaderResearch.watchlistTitle')}>
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Alert type="info" showIcon message={t('leaderResearch.watchlistHelp')} />
+          <Input.TextArea
+            rows={5}
+            value={watchlistRaw}
+            onChange={event => setWatchlistRaw(event.target.value)}
+            placeholder={t('leaderResearch.watchlistPlaceholder')}
+          />
+          <Space wrap>
+            <Button loading={watchlistLoading} onClick={previewWatchlist}>
+              {t('leaderResearch.previewWatchlist')}
+            </Button>
+            <Button type="primary" loading={watchlistLoading} onClick={saveWatchlist}>
+              {t('leaderResearch.saveWatchlist')}
+            </Button>
+          </Space>
+          {watchlistPreview && (
+            <Row gutter={[12, 12]}>
+              <WatchlistPreviewStat title={t('leaderResearch.validWallets')} values={watchlistPreview.valid} color="green" />
+              <WatchlistPreviewStat title={t('leaderResearch.invalidWallets')} values={watchlistPreview.invalid} color="red" />
+              <WatchlistPreviewStat title={t('leaderResearch.duplicateWallets')} values={watchlistPreview.duplicate} color="orange" />
+              <WatchlistPreviewStat title={t('leaderResearch.existingCandidates')} values={watchlistPreview.existingCandidates} color="blue" />
+              <WatchlistPreviewStat title={t('leaderResearch.lockedCandidates')} values={watchlistPreview.lockedCandidates} color="volcano" />
+              <WatchlistPreviewStat title={t('leaderResearch.retiredCandidates')} values={watchlistPreview.retiredCandidates} color="default" />
+            </Row>
+          )}
+        </Space>
+      </Card>
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
@@ -502,11 +691,22 @@ const LeaderResearch: React.FC = () => {
       <Modal
         open={!!approvalCandidate}
         title={t('leaderResearch.createDisabledTrial')}
-        onCancel={() => setApprovalCandidate(null)}
+        onCancel={() => {
+          setApprovalCandidate(null)
+          setApprovalError(null)
+        }}
         onOk={submitApproval}
         confirmLoading={approvalLoading}
       >
         <Space direction="vertical" style={{ width: '100%' }}>
+          {approvalError && (
+            <Alert
+              type="error"
+              showIcon
+              message={t('leaderResearch.approvalFailed')}
+              description={approvalError}
+            />
+          )}
           <Alert
             type="warning"
             showIcon
@@ -529,6 +729,81 @@ const LeaderResearch: React.FC = () => {
                 }))}
               />
             </Form.Item>
+            <Form.Item
+              name="autopilotEnabled"
+              valuePropName="checked"
+              label={t('leaderResearch.autopilotTrialSwitch')}
+              extra={t('leaderResearch.autopilotTrialSwitchHelp')}
+            >
+              <Switch />
+            </Form.Item>
+            {autopilotApprovalEnabled && (
+              <>
+                <Alert
+                  type="error"
+                  showIcon
+                  message={t('leaderResearch.autopilotBudgetConfirmTitle')}
+                  description={t('leaderResearch.autopilotBudgetConfirmDesc')}
+                />
+                <Row gutter={12}>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="maxBudget"
+                      label={t('leaderResearch.maxBudget')}
+                      rules={[{ required: true, message: t('leaderResearch.maxBudgetRequired') }]}
+                    >
+                      <Input suffix="USDC" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="singleLeaderMaxAmount"
+                      label={t('leaderResearch.singleLeaderMaxAmount')}
+                      rules={[{ required: true, message: t('leaderResearch.singleLeaderMaxAmountRequired') }]}
+                    >
+                      <Input suffix="USDC" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="maxDailyLoss"
+                      label={t('leaderResearch.maxDailyLoss')}
+                      rules={[{ required: true, message: t('leaderResearch.maxDailyLossRequired') }]}
+                    >
+                      <Input suffix="USDC" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="maxDailyOrders"
+                      label={t('leaderResearch.maxDailyOrders')}
+                      rules={[{ required: true, message: t('leaderResearch.maxDailyOrdersRequired') }]}
+                    >
+                      <Input type="number" min={1} />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={24} md={12}>
+                    <Form.Item
+                      name="maxPositionValue"
+                      label={t('leaderResearch.maxPositionValue')}
+                      rules={[{ required: true, message: t('leaderResearch.maxPositionValueRequired') }]}
+                    >
+                      <Input suffix="USDC" />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <Form.Item name="minPrice" label={t('leaderResearch.minPrice')}>
+                      <Input />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <Form.Item name="maxPrice" label={t('leaderResearch.maxPrice')}>
+                      <Input />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </>
+            )}
           </Form>
         </Space>
       </Modal>
@@ -570,6 +845,97 @@ const PaperPositionTable: React.FC<{ positions: LeaderPaperPosition[] }> = ({ po
       { title: 'Valuation', dataIndex: 'valuationStatus', render: valuationTag }
     ]}
   />
+)
+
+const toneColor = (tone?: string) => {
+  if (tone === 'good') return 'green'
+  if (tone === 'warning') return 'orange'
+  if (tone === 'danger') return 'red'
+  return 'default'
+}
+
+const ShortlistSection: React.FC<{
+  title: string
+  cards: LeaderResearchShortlistCard[]
+  empty: string
+  ctaLabel: string
+  onDetail: (candidate: LeaderResearchCandidate) => void
+  onApprove: (candidate: LeaderResearchCandidate) => void
+}> = ({ title, cards, empty, ctaLabel, onDetail, onApprove }) => (
+  <Card size="small" title={title}>
+    {cards.length > 0 ? (
+      <Row gutter={[12, 12]}>
+        {cards.map(card => (
+          <Col xs={24} md={12} xl={8} key={`${card.group}-${card.candidate.id}`}>
+            <Card size="small">
+              <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                <Space style={{ justifyContent: 'space-between', width: '100%' }} align="start">
+                  <Space direction="vertical" size={0}>
+                    <Text strong>{card.candidate.leaderName || card.candidate.normalizedWallet.slice(0, 10)}</Text>
+                    <Text copyable type="secondary" style={{ fontSize: 12, fontFamily: 'monospace' }}>
+                      {card.candidate.normalizedWallet}
+                    </Text>
+                  </Space>
+                  <Tag color="blue">#{card.priorityRank}</Tag>
+                </Space>
+                <Text>{card.recommendationReason}</Text>
+                {card.riskReason && <Alert type="warning" showIcon message={card.riskReason} />}
+                <Space wrap>
+                  {card.evidence.map(metric => (
+                    <Tag key={`${metric.label}-${metric.value}`} color={toneColor(metric.tone)}>
+                      {metric.label}: {metric.value}
+                    </Tag>
+                  ))}
+                </Space>
+                <Descriptions size="small" column={1}>
+                  <Descriptions.Item label="Fixed">{usdc(card.suggestedConfig.fixedAmount)}</Descriptions.Item>
+                  <Descriptions.Item label="Daily loss">{usdc(card.suggestedConfig.maxDailyLoss)}</Descriptions.Item>
+                  <Descriptions.Item label="Orders">{card.suggestedConfig.maxDailyOrders ?? '-'}</Descriptions.Item>
+                </Descriptions>
+                <Space>
+                  <Button size="small" onClick={() => onDetail(card.candidate)}>
+                    Detail
+                  </Button>
+                  {card.canCreateDisabledTrial && (
+                    <Button
+                      size="small"
+                      type="primary"
+                      onClick={() => onApprove(card.candidate)}
+                    >
+                      {ctaLabel}
+                    </Button>
+                  )}
+                </Space>
+              </Space>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+    ) : (
+      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={empty} />
+    )}
+  </Card>
+)
+
+const WatchlistPreviewStat: React.FC<{
+  title: string
+  values: string[]
+  color: string
+}> = ({ title, values, color }) => (
+  <Col xs={24} md={12} xl={8}>
+    <Card size="small" title={`${title} (${values.length})`}>
+      {values.length > 0 ? (
+        <Space wrap>
+          {values.slice(0, 12).map(value => (
+            <Tag key={`${title}-${value}`} color={color}>{value}</Tag>
+          ))}
+          {values.length > 12 && <Tag>+{values.length - 12}</Tag>}
+        </Space>
+      ) : (
+        <Text type="secondary">-</Text>
+      )}
+    </Card>
+  </Col>
 )
 
 const summaryFallback: LeaderResearchSummary = {

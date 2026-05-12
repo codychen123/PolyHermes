@@ -4,11 +4,16 @@ import com.wrbug.polymarketbot.dto.*
 import com.wrbug.polymarketbot.entity.Account
 import com.wrbug.polymarketbot.entity.CopyTrading
 import com.wrbug.polymarketbot.entity.Leader
+import com.wrbug.polymarketbot.enums.AutopilotActionType
+import com.wrbug.polymarketbot.enums.CopyTradingManagementMode
 import com.wrbug.polymarketbot.repository.AccountRepository
 import com.wrbug.polymarketbot.repository.CopyTradingRepository
 import com.wrbug.polymarketbot.repository.CopyTradingTemplateRepository
 import com.wrbug.polymarketbot.repository.LeaderRepository
 import com.wrbug.polymarketbot.service.copytrading.monitor.CopyTradingMonitorService
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderAutopilotDecisionRequest
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderAutopilotDecisionDeniedException
+import com.wrbug.polymarketbot.service.copytrading.research.LeaderAutopilotDecisionService
 import com.google.gson.Gson
 import com.wrbug.polymarketbot.util.IllegalBigDecimal
 import com.wrbug.polymarketbot.util.JsonUtils
@@ -30,6 +35,7 @@ class CopyTradingService(
     private val templateRepository: CopyTradingTemplateRepository,
     private val leaderRepository: LeaderRepository,
     private val monitorService: CopyTradingMonitorService,
+    private val autopilotService: LeaderAutopilotDecisionService,
     private val jsonUtils: JsonUtils,
     private val gson: Gson
 ) : ApplicationContextAware {
@@ -57,7 +63,7 @@ class CopyTradingService(
      * 2. 不提供 templateId：手动输入所有配置参数
      */
     @Transactional
-    fun createCopyTrading(request: CopyTradingCreateRequest): Result<CopyTradingDto> {
+    open fun createCopyTrading(request: CopyTradingCreateRequest): Result<CopyTradingDto> {
         return try {
             // 1. 验证账户是否存在
             val account = accountRepository.findById(request.accountId).orElse(null)
@@ -138,11 +144,42 @@ class CopyTradingService(
                 )
             }
             
+            val managementMode = parseManagementMode(request.managementMode)
+            val candidateId = request.autopilotCandidateId
+            val policyId = request.autopilotPolicyId
+            val requestedEnabled = request.enabled
+            val shouldEnable = if (managementMode == CopyTradingManagementMode.AUTOPILOT && requestedEnabled) {
+                val decision = autopilotService.decide(
+                    LeaderAutopilotDecisionRequest(
+                        actionType = AutopilotActionType.ENABLE_CONFIG,
+                        accountId = request.accountId,
+                        candidateId = candidateId,
+                        leaderId = request.leaderId,
+                        requestedAmount = config.fixedAmount,
+                        inputSnapshot = mapOf(
+                            "source" to "copyTrading.create",
+                            "copyMode" to config.copyMode,
+                            "fixedAmount" to config.fixedAmount?.toPlainString(),
+                            "maxOrderSize" to config.maxOrderSize.toPlainString()
+                        )
+                    )
+                )
+                if (!decision.allowed) {
+                    return Result.failure(LeaderAutopilotDecisionDeniedException("Autopilot 决策未允许启用真钱跟单配置: ${decision.reasonCode}"))
+                }
+                true
+            } else {
+                requestedEnabled
+            }
+
             // 6. 创建跟单配置
             val copyTrading = CopyTrading(
                 accountId = request.accountId,
                 leaderId = request.leaderId,
-                enabled = request.enabled,
+                enabled = shouldEnable,
+                managementMode = managementMode,
+                autopilotPolicyId = policyId,
+                autopilotCandidateId = candidateId,
                 copyMode = config.copyMode,
                 copyRatio = config.copyRatio,
                 fixedAmount = config.fixedAmount,
@@ -195,7 +232,7 @@ class CopyTradingService(
      * 更新跟单配置
      */
     @Transactional
-    fun updateCopyTrading(request: CopyTradingUpdateRequest): Result<CopyTradingDto> {
+    open fun updateCopyTrading(request: CopyTradingUpdateRequest): Result<CopyTradingDto> {
         return try {
             val copyTrading = copyTradingRepository.findById(request.copyTradingId).orElse(null)
                 ?: return Result.failure(IllegalArgumentException("跟单配置不存在"))
@@ -211,9 +248,15 @@ class CopyTradingService(
                 copyTrading.configName
             }
             
+            val requestedManagementMode = parseManagementMode(request.managementMode, copyTrading.managementMode)
+            val requestedEnabled = request.enabled ?: copyTrading.enabled
+
             // 更新字段（只更新提供的字段）
-            val updated = copyTrading.copy(
-                enabled = request.enabled ?: copyTrading.enabled,
+            val updatedDraft = copyTrading.copy(
+                enabled = requestedEnabled,
+                managementMode = requestedManagementMode,
+                autopilotPolicyId = request.autopilotPolicyId ?: copyTrading.autopilotPolicyId,
+                autopilotCandidateId = request.autopilotCandidateId ?: copyTrading.autopilotCandidateId,
                 copyMode = request.copyMode ?: copyTrading.copyMode,
                 copyRatio = request.copyRatio?.toSafeBigDecimal() ?: copyTrading.copyRatio,
                 fixedAmount = request.fixedAmount?.toSafeBigDecimal() ?: copyTrading.fixedAmount,
@@ -302,6 +345,34 @@ class CopyTradingService(
                 },
                 updatedAt = System.currentTimeMillis()
             )
+
+            val updated = if (updatedDraft.managementMode == CopyTradingManagementMode.AUTOPILOT &&
+                (copyTrading.managementMode != CopyTradingManagementMode.AUTOPILOT || !copyTrading.enabled) &&
+                updatedDraft.enabled
+            ) {
+                val decision = autopilotService.decide(
+                    LeaderAutopilotDecisionRequest(
+                        actionType = AutopilotActionType.ENABLE_CONFIG,
+                        accountId = updatedDraft.accountId,
+                        candidateId = updatedDraft.autopilotCandidateId,
+                        leaderId = updatedDraft.leaderId,
+                        copyTrading = updatedDraft,
+                        requestedAmount = updatedDraft.fixedAmount,
+                        inputSnapshot = mapOf(
+                            "source" to "copyTrading.update",
+                            "copyTradingId" to updatedDraft.id,
+                            "copyMode" to updatedDraft.copyMode,
+                            "fixedAmount" to updatedDraft.fixedAmount?.toPlainString()
+                        )
+                    )
+                )
+                if (!decision.allowed) {
+                    return Result.failure(LeaderAutopilotDecisionDeniedException("Autopilot 决策未允许启用真钱跟单配置: ${decision.reasonCode}"))
+                }
+                updatedDraft.copy(autopilotLastDecisionAt = System.currentTimeMillis())
+            } else {
+                updatedDraft
+            }
             
             val saved = copyTradingRepository.save(updated)
             
@@ -330,7 +401,7 @@ class CopyTradingService(
     }
 
     @Transactional
-    fun applyConservativeConfig(request: ApplyConservativeConfigRequest): Result<CopyTradingDto> {
+    open fun applyConservativeConfig(request: ApplyConservativeConfigRequest): Result<CopyTradingDto> {
         return try {
             val copyTrading = copyTradingRepository.findById(request.copyTradingId).orElse(null)
                 ?: return Result.failure(IllegalArgumentException("跟单配置不存在"))
@@ -363,7 +434,7 @@ class CopyTradingService(
      * 更新跟单状态（兼容旧接口）
      */
     @Transactional
-    fun updateCopyTradingStatus(request: CopyTradingUpdateStatusRequest): Result<CopyTradingDto> {
+    open fun updateCopyTradingStatus(request: CopyTradingUpdateStatusRequest): Result<CopyTradingDto> {
         return getSelf().updateCopyTrading(
             CopyTradingUpdateRequest(
                 copyTradingId = request.copyTradingId,
@@ -375,7 +446,7 @@ class CopyTradingService(
     /**
      * 查询跟单列表
      */
-    fun getCopyTradingList(request: CopyTradingListRequest): Result<CopyTradingListResponse> {
+    open fun getCopyTradingList(request: CopyTradingListRequest): Result<CopyTradingListResponse> {
         return try {
             val copyTradings = when {
                 request.accountId != null && request.leaderId != null -> {
@@ -433,7 +504,7 @@ class CopyTradingService(
      * 删除跟单
      */
     @Transactional
-    fun deleteCopyTrading(copyTradingId: Long): Result<Unit> {
+    open fun deleteCopyTrading(copyTradingId: Long): Result<Unit> {
         return try {
             val copyTrading = copyTradingRepository.findById(copyTradingId).orElse(null)
                 ?: return Result.failure(IllegalArgumentException("跟单配置不存在"))
@@ -462,7 +533,7 @@ class CopyTradingService(
     /**
      * 查询钱包绑定的跟单配置（兼容旧接口）
      */
-    fun getAccountTemplates(accountId: Long): Result<AccountTemplatesResponse> {
+    open fun getAccountTemplates(accountId: Long): Result<AccountTemplatesResponse> {
         return try {
             // 验证账户是否存在
             accountRepository.findById(accountId).orElse(null)
@@ -504,6 +575,14 @@ class CopyTradingService(
     /**
      * 转换为 DTO
      */
+    fun toDto(copyTrading: CopyTrading): CopyTradingDto {
+        val account = accountRepository.findById(copyTrading.accountId).orElse(null)
+            ?: throw IllegalStateException("账户不存在")
+        val leader = leaderRepository.findById(copyTrading.leaderId).orElse(null)
+            ?: throw IllegalStateException("Leader 不存在")
+        return toDto(copyTrading, account, leader)
+    }
+
     private fun toDto(
         copyTrading: CopyTrading,
         account: Account,
@@ -543,9 +622,20 @@ class CopyTradingService(
             pushFailedOrders = copyTrading.pushFailedOrders,
             pushFilteredOrders = copyTrading.pushFilteredOrders,
             maxMarketEndDate = copyTrading.maxMarketEndDate,
+            managementMode = copyTrading.managementMode.name,
+            autopilotPolicyId = copyTrading.autopilotPolicyId,
+            autopilotCandidateId = copyTrading.autopilotCandidateId,
+            autopilotPausedReason = copyTrading.autopilotPausedReason?.name,
+            autopilotLastDecisionAt = copyTrading.autopilotLastDecisionAt,
             createdAt = copyTrading.createdAt,
             updatedAt = copyTrading.updatedAt
         )
+    }
+
+    private fun parseManagementMode(value: String?, fallback: CopyTradingManagementMode = CopyTradingManagementMode.MANUAL): CopyTradingManagementMode {
+        return value?.trim()?.takeIf { it.isNotEmpty() }?.let {
+            runCatching { CopyTradingManagementMode.valueOf(it.uppercase()) }.getOrNull()
+        } ?: fallback
     }
     
     /**

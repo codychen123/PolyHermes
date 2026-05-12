@@ -109,9 +109,19 @@ enum class LeaderResearchEventType {
     RETIRED,
     VALUATION_STALE,
     APPROVAL_CREATED_DISABLED_CONFIG,
+    APPROVAL_CREATED_AUTOPILOT_CONFIG,
     APPROVAL_REJECTED,
     DUPLICATE_APPROVAL,
     REAL_MONEY_ACTIVATION_FORBIDDEN,
+    SHORTLIST_GENERATED,
+    SHORTLIST_BLOCKED,
+    AUTOPILOT_ENABLED,
+    AUTOPILOT_DISABLED,
+    AUTOPILOT_PAUSED,
+    AUTOPILOT_RESUMED,
+    AUTOPILOT_DECISION,
+    AUTOPILOT_CONFIG_CONVERTED_TO_MANUAL,
+    AUTOPILOT_FEEDBACK_UPDATED,
     NOTIFICATION_SUMMARY
 }
 
@@ -120,4 +130,57 @@ enum class LeaderResearchNotificationStatus {
     SENT,
     FAILED,
     SKIPPED
+}
+
+enum class AutopilotAccountState {
+    OFF,
+    ON,
+    PAUSED
+}
+
+enum class CopyTradingManagementMode {
+    MANUAL,
+    AUTOPILOT
+}
+
+enum class AutopilotActionType {
+    CREATE_CONFIG,
+    ENABLE_CONFIG,
+    BUY,
+    SELL,
+    RESUME,
+    CONVERT_TO_MANUAL
+}
+
+enum class AutopilotDecision {
+    ALLOW,
+    DENY,
+    PAUSE
+}
+
+enum class AutopilotPauseReason {
+    USER_DISABLED,
+    USER_PAUSED,
+    RISK_DAILY_LOSS,
+    RISK_MAX_DRAWDOWN,
+    RISK_REJECTION_RATE,
+    RISK_CONSECUTIVE_LOSSES,
+    RISK_DAILY_ORDERS,
+    RISK_BUDGET_EXHAUSTED,
+    RISK_POSITION_LIMIT,
+    SOURCE_STALE,
+    QUOTE_UNAVAILABLE,
+    POSITION_UNAVAILABLE,
+    KILL_SWITCH,
+    CANDIDATE_BLOCKED,
+    ACCOUNT_NOT_READY,
+    DUPLICATE_CONFIG,
+    UNKNOWN
+}
+
+enum class AutopilotReservationStatus {
+    PENDING,
+    FINALIZED,
+    RELEASED,
+    EXPIRED
 }

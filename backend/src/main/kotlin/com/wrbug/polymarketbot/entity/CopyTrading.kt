@@ -1,5 +1,7 @@
 package com.wrbug.polymarketbot.entity
 
+import com.wrbug.polymarketbot.enums.AutopilotPauseReason
+import com.wrbug.polymarketbot.enums.CopyTradingManagementMode
 import jakarta.persistence.*
 import java.math.BigDecimal
 import com.wrbug.polymarketbot.util.toSafeBigDecimal
@@ -22,6 +24,23 @@ data class CopyTrading(
     
     @Column(name = "enabled", nullable = false)
     val enabled: Boolean = true,  // 是否启用
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "management_mode", nullable = false, length = 30, columnDefinition = "VARCHAR(30)")
+    val managementMode: CopyTradingManagementMode = CopyTradingManagementMode.MANUAL,
+
+    @Column(name = "autopilot_policy_id")
+    val autopilotPolicyId: Long? = null,
+
+    @Column(name = "autopilot_candidate_id")
+    val autopilotCandidateId: Long? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "autopilot_paused_reason", length = 60, columnDefinition = "VARCHAR(60)")
+    val autopilotPausedReason: AutopilotPauseReason? = null,
+
+    @Column(name = "autopilot_last_decision_at")
+    val autopilotLastDecisionAt: Long? = null,
     
     // 跟单配置参数
     @Column(name = "copy_mode", nullable = false, length = 10)
@@ -109,4 +128,3 @@ data class CopyTrading(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Long = System.currentTimeMillis()
 )
-

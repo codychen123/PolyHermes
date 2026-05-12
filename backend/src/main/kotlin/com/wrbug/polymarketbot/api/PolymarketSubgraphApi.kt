@@ -58,6 +58,18 @@ interface PolymarketDataApi {
         @Query("sortDirection") sortDirection: String? = null,
         @Query("side") side: String? = null
     ): Response<List<UserActivityResponse>>
+
+    /**
+     * 获取 Polymarket trader leaderboard。
+     * 文档: https://docs.polymarket.com/api-reference/core/get-trader-leaderboard-rankings
+     */
+    @GET("/v1/leaderboard")
+    suspend fun getTraderLeaderboard(
+        @Query("category") category: String? = null,
+        @Query("timePeriod") timePeriod: String? = null,
+        @Query("orderBy") orderBy: String? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<List<TraderLeaderboardResponse>>
 }
 
 /**
@@ -127,4 +139,22 @@ data class UserActivityResponse(
     val profileImageOptimized: String? = null
 )
 
-
+data class TraderLeaderboardResponse(
+    val proxyWallet: String? = null,
+    val userName: String? = null,
+    val vol: Double? = null,
+    val xUsername: String? = null,
+    val verifiedBadge: Boolean? = null,
+    val wallet: String? = null,
+    val pseudonym: String? = null,
+    val name: String? = null,
+    val profileImage: String? = null,
+    val profileImageOptimized: String? = null,
+    val pnl: Double? = null,
+    val volume: Double? = null,
+    val amount: Double? = null,
+    val trades: Int? = null,
+    val rank: String? = null,
+    val winRate: Double? = null,
+    val lastTradeTime: Long? = null
+)
