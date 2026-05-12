@@ -41,6 +41,9 @@ data class CopyTrading(
 
     @Column(name = "autopilot_last_decision_at")
     val autopilotLastDecisionAt: Long? = null,
+
+    @Column(name = "autopilot_unique_key", length = 120)
+    var autopilotUniqueKey: String? = null,
     
     // 跟单配置参数
     @Column(name = "copy_mode", nullable = false, length = 10)
@@ -127,4 +130,14 @@ data class CopyTrading(
     
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Long = System.currentTimeMillis()
-)
+) {
+    @PrePersist
+    @PreUpdate
+    fun refreshAutopilotUniqueKey() {
+        autopilotUniqueKey = if (managementMode == CopyTradingManagementMode.AUTOPILOT) {
+            "$accountId:$leaderId"
+        } else {
+            null
+        }
+    }
+}

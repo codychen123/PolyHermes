@@ -8,13 +8,7 @@ ALTER TABLE copy_trading
     ADD COLUMN autopilot_candidate_id BIGINT DEFAULT NULL COMMENT 'Research candidate that created/manages this config',
     ADD COLUMN autopilot_paused_reason VARCHAR(60) DEFAULT NULL COMMENT 'Latest Autopilot pause reason',
     ADD COLUMN autopilot_last_decision_at BIGINT DEFAULT NULL COMMENT 'Latest Autopilot decision timestamp',
-    ADD COLUMN autopilot_unique_key VARCHAR(120)
-        GENERATED ALWAYS AS (
-            CASE
-                WHEN management_mode = 'AUTOPILOT' THEN CONCAT(account_id, ':', leader_id)
-                ELSE NULL
-            END
-        ) STORED,
+    ADD COLUMN autopilot_unique_key VARCHAR(120) DEFAULT NULL COMMENT 'Unique key populated only for AUTOPILOT configs',
     ADD INDEX idx_copy_trading_management_mode (management_mode),
     ADD INDEX idx_copy_trading_autopilot_policy (autopilot_policy_id),
     ADD INDEX idx_copy_trading_autopilot_candidate (autopilot_candidate_id),
