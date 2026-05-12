@@ -669,6 +669,7 @@
     "approvalCreated": "已建立停用試跟配置",
     "autopilotTrialCreated": "已建立 Autopilot 小額試跟配置",
     "approvalFailed": "建立停用試跟失敗",
+    "observeOnly": "繼續觀察",
     "trialReadyHint": "建議小額試跟，待你確認",
     "runStatus": "運行狀態",
     "lastRun": "最近運行",

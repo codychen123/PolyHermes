@@ -669,6 +669,7 @@
     "approvalCreated": "Disabled trial config created",
     "autopilotTrialCreated": "Autopilot small trial config created",
     "approvalFailed": "Failed to create disabled trial",
+    "observeOnly": "Observe only",
     "trialReadyHint": "Suggested small trial, awaiting your confirmation",
     "runStatus": "Run Status",
     "lastRun": "Last Run",

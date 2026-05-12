@@ -369,15 +369,20 @@ const LeaderResearch: React.FC = () => {
           <Button size="small" onClick={() => openDetail(item)}>
             {t('common.detail')}
           </Button>
-          <Button
-            size="small"
-            type="primary"
-            icon={<SafetyCertificateOutlined />}
-            disabled={item.researchState !== 'TRIAL_READY'}
-            onClick={() => openApproval(item)}
-          >
-            {t('leaderResearch.createDisabledTrial')}
-          </Button>
+          {item.researchState === 'TRIAL_READY' ? (
+            <Button
+              size="small"
+              type="primary"
+              icon={<SafetyCertificateOutlined />}
+              onClick={() => openApproval(item)}
+            >
+              {t('leaderResearch.createDisabledTrial')}
+            </Button>
+          ) : (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {t('leaderResearch.observeOnly')}
+            </Text>
+          )}
         </Space>
       )
     }
