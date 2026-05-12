@@ -702,6 +702,7 @@ const LeaderResearch: React.FC = () => {
         }}
         onOk={submitApproval}
         confirmLoading={approvalLoading}
+        styles={{ body: { maxHeight: 'calc(100vh - 220px)', overflowY: 'auto' } }}
       >
         <Space direction="vertical" style={{ width: '100%' }}>
           {approvalError && (
